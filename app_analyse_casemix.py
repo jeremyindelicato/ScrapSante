@@ -488,44 +488,59 @@ with col5:
 st.markdown("---")
 
 # ========================================
-# FONCTIONS DE CALCUL CACHEES (CRUCIAL POUR PERFORMANCES!)
+# FONCTIONS DE CALCUL CACHEES AVEC SESSION STATE (CRUCIAL!)
 # ========================================
+# PROBLEME: @st.cache_data hash le DataFrame (lent sur 2.2M lignes)
+# SOLUTION: Utiliser session_state avec une clé légère
 
-@st.cache_data(ttl=600)
-def compute_top_libelles(_df_filtered, top_n=10):
+def compute_cached(cache_key_suffix, compute_func):
+    """Wrapper générique pour cache en session_state"""
+    full_key = f"computed_{cache_key}_{cache_key_suffix}"
+
+    if full_key not in st.session_state:
+        st.session_state[full_key] = compute_func()
+
+    return st.session_state[full_key]
+
+def compute_top_libelles(df_filtered, top_n=10):
     """Cache le top N des libellés"""
-    return _df_filtered.groupby('Libelle', as_index=False, sort=False).agg({
-        'Effectif': 'sum'
-    }).nlargest(top_n, 'Effectif')
+    def calc():
+        return df_filtered.groupby('Libelle', as_index=False, sort=False).agg({
+            'Effectif': 'sum'
+        }).nlargest(top_n, 'Effectif')
+    return compute_cached(f"top{top_n}", calc)
 
-@st.cache_data(ttl=600)
-def compute_detailed_table(_df_filtered):
+def compute_detailed_table(df_filtered):
     """Cache le tableau détaillé avec weighted averages"""
-    df_temp = _df_filtered.reset_index(drop=True)
-    return df_temp.groupby('Libelle', as_index=False).agg({
-        'Effectif': 'sum',
-        'DMS': lambda x: np.average(x, weights=df_temp.loc[x.index, 'Effectif']) if df_temp.loc[x.index, 'Effectif'].sum() > 0 else 0,
-        'Age_Moyen': lambda x: np.average(x, weights=df_temp.loc[x.index, 'Effectif']) if df_temp.loc[x.index, 'Effectif'].sum() > 0 else 0,
-        'Taux_Deces': lambda x: np.average(x, weights=df_temp.loc[x.index, 'Effectif']) if df_temp.loc[x.index, 'Effectif'].sum() > 0 else 0
-    }).sort_values('Effectif', ascending=False).head(20)
+    def calc():
+        df_temp = df_filtered.reset_index(drop=True)
+        return df_temp.groupby('Libelle', as_index=False).agg({
+            'Effectif': 'sum',
+            'DMS': lambda x: np.average(x, weights=df_temp.loc[x.index, 'Effectif']) if df_temp.loc[x.index, 'Effectif'].sum() > 0 else 0,
+            'Age_Moyen': lambda x: np.average(x, weights=df_temp.loc[x.index, 'Effectif']) if df_temp.loc[x.index, 'Effectif'].sum() > 0 else 0,
+            'Taux_Deces': lambda x: np.average(x, weights=df_temp.loc[x.index, 'Effectif']) if df_temp.loc[x.index, 'Effectif'].sum() > 0 else 0
+        }).sort_values('Effectif', ascending=False).head(20)
+    return compute_cached("detailed", calc)
 
-@st.cache_data(ttl=600)
-def compute_evolution_data(_df_filtered):
+def compute_evolution_data(df_filtered):
     """Cache les données d'évolution temporelle"""
-    df_temp = _df_filtered.reset_index(drop=True)
-    return df_temp.groupby('Annee', as_index=False).agg({
-        'Effectif': 'sum',
-        'DMS': lambda x: np.average(x, weights=df_temp.loc[x.index, 'Effectif']) if df_temp.loc[x.index, 'Effectif'].sum() > 0 else 0,
-        'Age_Moyen': lambda x: np.average(x, weights=df_temp.loc[x.index, 'Effectif']) if df_temp.loc[x.index, 'Effectif'].sum() > 0 else 0,
-        'Taux_Deces': lambda x: np.average(x, weights=df_temp.loc[x.index, 'Effectif']) if df_temp.loc[x.index, 'Effectif'].sum() > 0 else 0
-    })
+    def calc():
+        df_temp = df_filtered.reset_index(drop=True)
+        return df_temp.groupby('Annee', as_index=False).agg({
+            'Effectif': 'sum',
+            'DMS': lambda x: np.average(x, weights=df_temp.loc[x.index, 'Effectif']) if df_temp.loc[x.index, 'Effectif'].sum() > 0 else 0,
+            'Age_Moyen': lambda x: np.average(x, weights=df_temp.loc[x.index, 'Effectif']) if df_temp.loc[x.index, 'Effectif'].sum() > 0 else 0,
+            'Taux_Deces': lambda x: np.average(x, weights=df_temp.loc[x.index, 'Effectif']) if df_temp.loc[x.index, 'Effectif'].sum() > 0 else 0
+        })
+    return compute_cached("evol", calc)
 
-@st.cache_data(ttl=600)
-def compute_classification_data(_df_filtered, column_name):
+def compute_classification_data(df_filtered, column_name):
     """Cache les données de classification (DA ou PKCS)"""
-    if column_name not in _df_filtered.columns:
-        return pd.DataFrame()
-    return _df_filtered[_df_filtered[column_name] != 'Non renseigné'].groupby(column_name)['Effectif'].sum().reset_index().sort_values('Effectif', ascending=False).head(10)
+    def calc():
+        if column_name not in df_filtered.columns:
+            return pd.DataFrame()
+        return df_filtered[df_filtered[column_name] != 'Non renseigné'].groupby(column_name)['Effectif'].sum().reset_index().sort_values('Effectif', ascending=False).head(10)
+    return compute_cached(f"class_{column_name}", calc)
 
 # ========================================
 # ONGLETS
