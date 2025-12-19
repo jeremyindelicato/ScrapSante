@@ -1,0 +1,21 @@
+[server]
+maxUploadSize = 1000
+enableXsrfProtection = true
+enableCORS = false
+runOnSave = false
+
+[runner]
+fastReruns = true
+magicEnabled = false
+
+[client]
+showErrorDetails = true
+toolbarMode = "minimal"
+
+[browser]
+gatherUsageStats = false
+
+[theme]
+primaryColor = "#823B8A"
+backgroundColor = "#FFFFFF"
+secondaryBackgroundColor = "#F5F5F5"

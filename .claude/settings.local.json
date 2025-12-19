@@ -1,0 +1,36 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(pip install:*)",
+      "Bash(python:*)",
+      "Bash(timeout /t 2)",
+      "Bash(nul)",
+      "Bash(timeout /t 3)",
+      "Bash(dir:*)",
+      "Bash(powershell -Command:*)",
+      "Bash(.venvScriptspython.exe -m pip install streamlit pandas plotly numpy)",
+      "Bash(if not exist assets mkdir assets)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(git branch:*)",
+      "Bash(git push:*)",
+      "Bash(mkdir:*)",
+      "Bash(uvicorn:*)",
+      "Bash(curl:*)",
+      "Bash(rm:*)",
+      "Bash(ls:*)",
+      "Bash(streamlit:*)",
+      "Bash(copy app_analyse_casemix.py app_analyse_casemix_BACKUP.py)",
+      "Bash(timeout /t 5)",
+      "Bash(git lfs:*)",
+      "Bash(git reset:*)",
+      "Bash(git rm:*)",
+      "Bash(git pull:*)",
+      "Bash(git stash:*)",
+      "Bash(cat:*)",
+      "Bash(git checkout:*)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}
