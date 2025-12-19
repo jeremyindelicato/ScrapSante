@@ -488,6 +488,46 @@ with col5:
 st.markdown("---")
 
 # ========================================
+# FONCTIONS DE CALCUL CACHEES (CRUCIAL POUR PERFORMANCES!)
+# ========================================
+
+@st.cache_data(ttl=600)
+def compute_top_libelles(_df_filtered, top_n=10):
+    """Cache le top N des libellés"""
+    return _df_filtered.groupby('Libelle', as_index=False, sort=False).agg({
+        'Effectif': 'sum'
+    }).nlargest(top_n, 'Effectif')
+
+@st.cache_data(ttl=600)
+def compute_detailed_table(_df_filtered):
+    """Cache le tableau détaillé avec weighted averages"""
+    df_temp = _df_filtered.reset_index(drop=True)
+    return df_temp.groupby('Libelle', as_index=False).agg({
+        'Effectif': 'sum',
+        'DMS': lambda x: np.average(x, weights=df_temp.loc[x.index, 'Effectif']) if df_temp.loc[x.index, 'Effectif'].sum() > 0 else 0,
+        'Age_Moyen': lambda x: np.average(x, weights=df_temp.loc[x.index, 'Effectif']) if df_temp.loc[x.index, 'Effectif'].sum() > 0 else 0,
+        'Taux_Deces': lambda x: np.average(x, weights=df_temp.loc[x.index, 'Effectif']) if df_temp.loc[x.index, 'Effectif'].sum() > 0 else 0
+    }).sort_values('Effectif', ascending=False).head(20)
+
+@st.cache_data(ttl=600)
+def compute_evolution_data(_df_filtered):
+    """Cache les données d'évolution temporelle"""
+    df_temp = _df_filtered.reset_index(drop=True)
+    return df_temp.groupby('Annee', as_index=False).agg({
+        'Effectif': 'sum',
+        'DMS': lambda x: np.average(x, weights=df_temp.loc[x.index, 'Effectif']) if df_temp.loc[x.index, 'Effectif'].sum() > 0 else 0,
+        'Age_Moyen': lambda x: np.average(x, weights=df_temp.loc[x.index, 'Effectif']) if df_temp.loc[x.index, 'Effectif'].sum() > 0 else 0,
+        'Taux_Deces': lambda x: np.average(x, weights=df_temp.loc[x.index, 'Effectif']) if df_temp.loc[x.index, 'Effectif'].sum() > 0 else 0
+    })
+
+@st.cache_data(ttl=600)
+def compute_classification_data(_df_filtered, column_name):
+    """Cache les données de classification (DA ou PKCS)"""
+    if column_name not in _df_filtered.columns:
+        return pd.DataFrame()
+    return _df_filtered[_df_filtered[column_name] != 'Non renseigné'].groupby(column_name)['Effectif'].sum().reset_index().sort_values('Effectif', ascending=False).head(10)
+
+# ========================================
 # ONGLETS
 # ========================================
 
@@ -506,11 +546,8 @@ with tab1:
     col1, col2 = st.columns(2)
 
     with col1:
-        # Top 10 Libellés (optimisé avec groupby sort=False)
-        with st.spinner('Chargement...'):
-            df_top = df_filtered.groupby('Libelle', as_index=False, sort=False).agg({
-                'Effectif': 'sum'
-            }).nlargest(10, 'Effectif')
+        # Top 10 Libellés (CACHE)
+        df_top = compute_top_libelles(df_filtered, 10)
 
         fig = px.bar(
             df_top,
@@ -653,15 +690,8 @@ with tab1:
 with tab2:
     st.markdown('<div class="section-title">Analyses Détaillées</div>', unsafe_allow_html=True)
 
-    # Top 20 avec métriques complètes
-    # Reset index pour que les lambdas avec weights fonctionnent correctement
-    df_temp = df_filtered.reset_index(drop=True)
-    df_detail = df_temp.groupby('Libelle', as_index=False).agg({
-        'Effectif': 'sum',
-        'DMS': lambda x: np.average(x, weights=df_temp.loc[x.index, 'Effectif']) if df_temp.loc[x.index, 'Effectif'].sum() > 0 else 0,
-        'Age_Moyen': lambda x: np.average(x, weights=df_temp.loc[x.index, 'Effectif']) if df_temp.loc[x.index, 'Effectif'].sum() > 0 else 0,
-        'Taux_Deces': lambda x: np.average(x, weights=df_temp.loc[x.index, 'Effectif']) if df_temp.loc[x.index, 'Effectif'].sum() > 0 else 0
-    }).sort_values('Effectif', ascending=False).head(20)
+    # Top 20 avec métriques complètes (CACHE - évite recalcul weighted averages!)
+    df_detail = compute_detailed_table(df_filtered)
 
     col1, col2 = st.columns(2)
 
@@ -766,8 +796,7 @@ with tab3:
     # Analyse par DA (Domaine d'Activité)
     with col1:
         if 'DA' in df_filtered.columns:
-            df_da = df_filtered[df_filtered['DA'] != 'Non renseigné'].groupby('DA')['Effectif'].sum().reset_index()
-            df_da = df_da.sort_values('Effectif', ascending=False).head(10)
+            df_da = compute_classification_data(df_filtered, 'DA')
 
             fig = px.bar(
                 df_da,
@@ -791,8 +820,7 @@ with tab3:
     # Analyse par Classification PKCS
     with col2:
         if 'Classif PKCS' in df_filtered.columns:
-            df_pkcs = df_filtered[df_filtered['Classif PKCS'] != 'Non renseigné'].groupby('Classif PKCS')['Effectif'].sum().reset_index()
-            df_pkcs = df_pkcs.sort_values('Effectif', ascending=False).head(10)
+            df_pkcs = compute_classification_data(df_filtered, 'Classif PKCS')
 
             fig = px.bar(
                 df_pkcs,
@@ -866,14 +894,8 @@ with tab4:
     st.markdown('<div class="section-title">Évolution Temporelle</div>', unsafe_allow_html=True)
 
     if len(annees_selectionnees) > 1:
-        # Évolution globale - Reset index pour weighted average
-        df_temp_evol = df_filtered.reset_index(drop=True)
-        df_evol = df_temp_evol.groupby('Annee', as_index=False).agg({
-            'Effectif': 'sum',
-            'DMS': lambda x: np.average(x, weights=df_temp_evol.loc[x.index, 'Effectif']) if df_temp_evol.loc[x.index, 'Effectif'].sum() > 0 else 0,
-            'Age_Moyen': lambda x: np.average(x, weights=df_temp_evol.loc[x.index, 'Effectif']) if df_temp_evol.loc[x.index, 'Effectif'].sum() > 0 else 0,
-            'Taux_Deces': lambda x: np.average(x, weights=df_temp_evol.loc[x.index, 'Effectif']) if df_temp_evol.loc[x.index, 'Effectif'].sum() > 0 else 0
-        })
+        # Évolution globale (CACHE - évite recalcul weighted averages!)
+        df_evol = compute_evolution_data(df_filtered)
 
         # Graphiques sur 2 colonnes
         col1, col2 = st.columns(2)
