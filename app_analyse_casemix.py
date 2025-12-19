@@ -21,7 +21,7 @@ load_dotenv()
 # Configuration de la page
 st.set_page_config(
     page_title="Casemix Dashboard",
-    page_icon="📊",
+    page_icon="assets/3xS.svg",
     layout="wide",
     initial_sidebar_state="expanded"
 )
