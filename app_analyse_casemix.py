@@ -254,10 +254,7 @@ def load_data():
     # Lecture du fichier Parquet (beaucoup plus rapide que CSV!)
     try:
         df = pd.read_parquet(data_file)
-
-        # OPTIMISATION CRITIQUE: Pre-indexer par Finess pour filtrage ultra-rapide
-        df = df.set_index('Finess', drop=False)
-
+        # Pas d'index - le filtrage direct est plus rapide pour des MultiIndex non-unique
     except Exception as e:
         st.error(f"Erreur lors de la lecture du Parquet : {str(e)}")
         st.stop()
@@ -401,27 +398,25 @@ with st.sidebar:
 # ========================================
 
 def filter_data_ultra_fast(finess, annees, da, classif, recherche):
-    """Filtrage ultra-rapide utilisant l'index Finess"""
-    # Utilisation de l'index pour filtrage instantané par Finess
-    df_filtered = df.loc[finess].copy() if finess in df.index else df[df['Finess'] == finess].copy()
+    """Filtrage ultra-rapide avec masque booleen (plus rapide que .loc sur MultiIndex)"""
+    # Filtrage direct par Finess avec masque booleen - BEAUCOUP plus rapide
+    mask = (df['Finess'] == finess)
 
-    # Filtres additionnels
+    # Appliquer tous les filtres d'un coup
     if annees:
-        df_filtered = df_filtered[df_filtered['Annee'].isin(annees)]
+        mask &= df['Annee'].isin(annees)
 
     if da != 'Tous':
-        df_filtered = df_filtered[df_filtered['DA'] == da]
+        mask &= (df['DA'] == da)
 
     if classif != 'Tous':
-        df_filtered = df_filtered[df_filtered['Classif PKCS'] == classif]
+        mask &= (df['Classif PKCS'] == classif)
 
-    # Recherche dans les libelles (seulement si necessaire)
     if recherche:
-        df_filtered = df_filtered[
-            df_filtered['Libelle'].str.contains(recherche, case=False, na=False)
-        ]
+        mask &= df['Libelle'].str.contains(recherche, case=False, na=False)
 
-    return df_filtered
+    # Un seul filtrage à la fin - beaucoup plus rapide
+    return df[mask].copy()
 
 # Utilisation de session_state pour garder le dernier filtrage en memoire
 cache_key = f"{etablissement_selectionne}_{tuple(annees_selectionnees) if annees_selectionnees else ()}_{da_selectionne}_{classif_selectionne}_{recherche_libelle}"
