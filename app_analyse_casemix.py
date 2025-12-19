@@ -324,8 +324,21 @@ if not st.session_state.authenticated:
     st.stop()
 
 # ========================================
-# SIDEBAR - FILTRES
+# SIDEBAR - FILTRES (AVEC CACHE POUR LES LISTES)
 # ========================================
+
+# OPTIMISATION CRITIQUE: Calculer les listes de filtres UNE SEULE FOIS
+@st.cache_data
+def get_filter_options():
+    """Calcule les options de filtres une seule fois au lieu de à chaque rerun"""
+    return {
+        'annees': sorted(df['Annee'].unique()),
+        'finess': sorted(df['Finess'].unique()),
+        'da': ['Tous'] + sorted([x for x in df['DA'].unique() if x != 'Non renseigné']) if 'DA' in df.columns else ['Tous'],
+        'classif': ['Tous'] + sorted([x for x in df['Classif PKCS'].unique() if x != 'Non renseigné']) if 'Classif PKCS' in df.columns else ['Tous']
+    }
+
+filter_opts = get_filter_options()
 
 with st.sidebar:
     # Logo
@@ -337,24 +350,21 @@ with st.sidebar:
     st.markdown("### Filtres")
 
     # Filtre années
-    annees_disponibles = sorted(df['Annee'].unique())
     annees_selectionnees = st.multiselect(
         "Années",
-        options=annees_disponibles,
-        default=annees_disponibles,
+        options=filter_opts['annees'],
+        default=filter_opts['annees'],
         help="Sélectionnez les années à analyser"
     )
 
     # Filtre établissement
-    etablissements_finess = sorted(df['Finess'].unique())
-
     def format_etablissement(finess):
         nom = finess_mapping.get(finess, df[df['Finess']==finess]['Nom_Etablissement'].iloc[0] if len(df[df['Finess']==finess]) > 0 else 'Inconnu')
         return f"{finess} - {nom}"
 
     etablissement_selectionne = st.selectbox(
         "Établissement",
-        options=etablissements_finess,
+        options=filter_opts['finess'],
         format_func=format_etablissement,
         help="Choisissez un établissement"
     )
@@ -363,17 +373,8 @@ with st.sidebar:
     st.markdown("### Filtres avancés")
 
     # Filtre par classification
-    if 'DA' in df.columns:
-        da_disponibles = ['Tous'] + sorted([x for x in df['DA'].unique() if x != 'Non renseigné'])
-        da_selectionne = st.selectbox("Domaine d'activité (DA)", options=da_disponibles)
-    else:
-        da_selectionne = 'Tous'
-
-    if 'Classif PKCS' in df.columns:
-        classif_disponibles = ['Tous'] + sorted([x for x in df['Classif PKCS'].unique() if x != 'Non renseigné'])
-        classif_selectionne = st.selectbox("Classification PKCS", options=classif_disponibles)
-    else:
-        classif_selectionne = 'Tous'
+    da_selectionne = st.selectbox("Domaine d'activité (DA)", options=filter_opts['da'])
+    classif_selectionne = st.selectbox("Classification PKCS", options=filter_opts['classif'])
 
     # Recherche par libellé
     st.markdown("---")
