@@ -359,7 +359,7 @@ with st.sidebar:
 
     # Filtre établissement
     def format_etablissement(finess):
-        nom = finess_mapping.get(finess, df[df['Finess']==finess]['Nom_Etablissement'].iloc[0] if len(df[df['Finess']==finess]) > 0 else 'Inconnu')
+        nom = finess_mapping.get(finess, 'Inconnu')  # FIX CRITIQUE: Ne JAMAIS filtrer df ici!
         return f"{finess} - {nom}"
 
     etablissement_selectionne = st.selectbox(
@@ -438,10 +438,7 @@ df_filtered = st.session_state.df_filtered
 # EN-TÊTE
 # ========================================
 
-nom_etab = finess_mapping.get(
-    etablissement_selectionne,
-    df[df['Finess']==etablissement_selectionne]['Nom_Etablissement'].iloc[0] if len(df[df['Finess']==etablissement_selectionne]) > 0 else 'Inconnu'
-)
+nom_etab = finess_mapping.get(etablissement_selectionne, 'Inconnu')  # FIX: Ne pas filtrer df ici!
 
 st.markdown(f"""
 <div class="custom-header">
