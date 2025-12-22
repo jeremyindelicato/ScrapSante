@@ -26,7 +26,7 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# CSS personnalisé - Design épuré et responsive
+# CSS personnalisé - Design épuré et responsive avec animations
 st.markdown("""
 <style>
     /* Variables de couleurs */
@@ -39,20 +39,70 @@ st.markdown("""
         --border-color: #E0E0E0;
     }
 
+    /* Animations globales */
+    @keyframes fadeInUp {
+        from {
+            opacity: 0;
+            transform: translateY(20px);
+        }
+        to {
+            opacity: 1;
+            transform: translateY(0);
+        }
+    }
+
+    @keyframes slideInRight {
+        from {
+            opacity: 0;
+            transform: translateX(-30px);
+        }
+        to {
+            opacity: 1;
+            transform: translateX(0);
+        }
+    }
+
+    @keyframes shimmer {
+        0% {
+            background-position: -1000px 0;
+        }
+        100% {
+            background-position: 1000px 0;
+        }
+    }
+
+    @keyframes pulse {
+        0%, 100% {
+            opacity: 1;
+        }
+        50% {
+            opacity: 0.8;
+        }
+    }
+
     /* Réduire les marges globales */
     .block-container {
         padding-top: 2rem;
         padding-bottom: 1rem;
         max-width: 100%;
+        animation: fadeInUp 0.6s ease-out;
     }
 
-    /* Header personnalisé */
+    /* Header personnalisé avec animation */
     .custom-header {
         background: linear-gradient(135deg, #FFFFFF 0%, #F8F9FA 100%);
         border-radius: 8px;
         padding: 1.5rem;
         margin-bottom: 1.5rem;
         border-left: 4px solid var(--accent-color);
+        animation: slideInRight 0.8s ease-out;
+        transition: all 0.3s ease;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+    }
+
+    .custom-header:hover {
+        box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+        transform: translateY(-2px);
     }
 
     .custom-header h1 {
@@ -60,6 +110,10 @@ st.markdown("""
         font-size: 1.8rem;
         font-weight: 600;
         margin: 0;
+        background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
     }
 
     .custom-header p {
@@ -68,20 +122,42 @@ st.markdown("""
         margin: 0.5rem 0 0 0;
     }
 
-    /* Cards KPI */
+    /* Cards KPI avec animations */
+    [data-testid="stMetric"] {
+        background: linear-gradient(135deg, #FFFFFF 0%, #FAFBFC 100%);
+        border-radius: 12px;
+        padding: 1rem;
+        border: 1px solid var(--border-color);
+        transition: all 0.3s ease;
+        animation: fadeInUp 0.8s ease-out;
+    }
+
+    [data-testid="stMetric"]:hover {
+        transform: translateY(-4px) scale(1.02);
+        box-shadow: 0 8px 16px rgba(0,0,0,0.1);
+        border-color: var(--accent-color);
+    }
+
     [data-testid="stMetricValue"] {
         font-size: 1.8rem;
         font-weight: 600;
         color: var(--primary-color);
+        transition: color 0.3s ease;
+    }
+
+    [data-testid="stMetric"]:hover [data-testid="stMetricValue"] {
+        color: var(--accent-color);
     }
 
     [data-testid="stMetricLabel"] {
         font-size: 0.9rem;
         font-weight: 500;
         color: #666;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
     }
 
-    /* Tabs styling */
+    /* Tabs styling avec animations */
     .stTabs [data-baseweb="tab-list"] {
         gap: 2rem;
         background-color: transparent;
@@ -94,17 +170,42 @@ st.markdown("""
         color: #666;
         border: none;
         background-color: transparent;
+        transition: all 0.3s ease;
+        position: relative;
+    }
+
+    .stTabs [data-baseweb="tab"]:hover {
+        color: var(--accent-color);
+        transform: translateY(-2px);
     }
 
     .stTabs [aria-selected="true"] {
         color: var(--accent-color);
         border-bottom: 3px solid var(--accent-color);
         background-color: transparent;
+        animation: slideInRight 0.4s ease-out;
     }
 
-    /* Sidebar styling */
+    .stTabs [aria-selected="true"]::after {
+        content: '';
+        position: absolute;
+        bottom: -2px;
+        left: 0;
+        width: 100%;
+        height: 3px;
+        background: linear-gradient(90deg, var(--accent-color), var(--tertiary-color));
+        animation: shimmer 2s infinite;
+    }
+
+    /* Sidebar styling avec animation */
     [data-testid="stSidebar"] {
-        background-color: #1E1E1E;
+        background: linear-gradient(180deg, #1E1E1E 0%, #252525 100%);
+        animation: slideInRight 0.5s ease-out;
+        box-shadow: 2px 0 12px rgba(0,0,0,0.3);
+    }
+
+    [data-testid="stSidebar"] > div {
+        background: transparent;
     }
 
     [data-testid="stSidebar"] [data-testid="stMarkdownContainer"] {
@@ -125,17 +226,35 @@ st.markdown("""
         background-color: #2A2A2A;
         color: #E0E0E0;
         border: 1px solid #444;
+        transition: all 0.3s ease;
+    }
+
+    [data-testid="stSidebar"] .stSelectbox > div > div:hover {
+        border-color: var(--accent-color);
+        box-shadow: 0 0 8px rgba(255, 181, 0, 0.2);
     }
 
     [data-testid="stSidebar"] .stMultiSelect > div > div {
         background-color: #2A2A2A;
         border: 1px solid #444;
+        transition: all 0.3s ease;
+    }
+
+    [data-testid="stSidebar"] .stMultiSelect > div > div:hover {
+        border-color: var(--accent-color);
+        box-shadow: 0 0 8px rgba(255, 181, 0, 0.2);
     }
 
     [data-testid="stSidebar"] .stTextInput > div > div > input {
         background-color: #2A2A2A;
         color: #E0E0E0;
         border: 1px solid #444;
+        transition: all 0.3s ease;
+    }
+
+    [data-testid="stSidebar"] .stTextInput > div > div > input:focus {
+        border-color: var(--accent-color);
+        box-shadow: 0 0 12px rgba(255, 181, 0, 0.3);
     }
 
     [data-testid="stSidebar"] .stTextInput > div > div > input::placeholder {
@@ -149,20 +268,41 @@ st.markdown("""
         border: 1px solid #444;
     }
 
-    /* Boutons */
+    /* Boutons avec animations */
     .stButton > button {
         width: 100%;
-        border-radius: 6px;
+        border-radius: 8px;
         border: 1px solid var(--border-color);
         font-weight: 500;
         transition: all 0.3s ease;
         background-color: transparent;
+        position: relative;
+        overflow: hidden;
+    }
+
+    .stButton > button::before {
+        content: '';
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        width: 0;
+        height: 0;
+        border-radius: 50%;
+        background: rgba(255, 181, 0, 0.2);
+        transform: translate(-50%, -50%);
+        transition: width 0.6s, height 0.6s;
+    }
+
+    .stButton > button:hover::before {
+        width: 300px;
+        height: 300px;
     }
 
     .stButton > button:hover {
         border-color: var(--accent-color);
         color: var(--accent-color);
-        background-color: rgba(255, 181, 0, 0.1);
+        transform: translateY(-2px);
+        box-shadow: 0 4px 12px rgba(255, 181, 0, 0.3);
     }
 
     /* Bouton dans sidebar */
@@ -188,7 +328,7 @@ st.markdown("""
         fill: #1E1E1E !important;
     }
 
-    /* Sections */
+    /* Sections avec animations */
     .section-title {
         font-size: 1.3rem;
         font-weight: 600;
@@ -196,12 +336,85 @@ st.markdown("""
         margin: 2rem 0 1rem 0;
         padding-bottom: 0.5rem;
         border-bottom: 2px solid var(--border-color);
+        position: relative;
+        animation: slideInRight 0.6s ease-out;
     }
 
-    /* Graphiques */
+    .section-title::after {
+        content: '';
+        position: absolute;
+        bottom: -2px;
+        left: 0;
+        width: 80px;
+        height: 2px;
+        background: linear-gradient(90deg, var(--accent-color), transparent);
+        animation: shimmer 3s infinite;
+    }
+
+    /* Graphiques avec animations */
     .plotly-graph-div {
-        border-radius: 8px;
-        box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+        border-radius: 12px;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+        transition: all 0.4s ease;
+        animation: fadeInUp 1s ease-out;
+        background: white;
+    }
+
+    .plotly-graph-div:hover {
+        box-shadow: 0 8px 20px rgba(0,0,0,0.12);
+        transform: translateY(-4px);
+    }
+
+    /* Colonnes avec stagger animation */
+    .element-container {
+        animation: fadeInUp 0.8s ease-out;
+    }
+
+    .element-container:nth-child(1) { animation-delay: 0.1s; }
+    .element-container:nth-child(2) { animation-delay: 0.2s; }
+    .element-container:nth-child(3) { animation-delay: 0.3s; }
+    .element-container:nth-child(4) { animation-delay: 0.4s; }
+    .element-container:nth-child(5) { animation-delay: 0.5s; }
+
+    /* Dataframes avec animations */
+    [data-testid="stDataFrame"] {
+        border-radius: 12px;
+        overflow: hidden;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+        transition: all 0.3s ease;
+        animation: fadeInUp 1s ease-out;
+    }
+
+    [data-testid="stDataFrame"]:hover {
+        box-shadow: 0 6px 16px rgba(0,0,0,0.1);
+    }
+
+    /* Loading spinner personnalisé */
+    .stSpinner > div {
+        border-color: var(--accent-color) !important;
+        border-right-color: transparent !important;
+    }
+
+    /* Smooth scroll */
+    html {
+        scroll-behavior: smooth;
+    }
+
+    /* Logo animations */
+    [data-testid="stSidebar"] [data-testid="stImage"] {
+        transition: all 0.3s ease;
+        filter: brightness(0.95);
+    }
+
+    [data-testid="stSidebar"] [data-testid="stImage"]:hover {
+        filter: brightness(1.1);
+        transform: scale(1.05);
+    }
+
+    /* Progress bar si présent */
+    .stProgress > div > div {
+        background: linear-gradient(90deg, var(--primary-color), var(--accent-color));
+        animation: pulse 2s infinite;
     }
 
     /* Responsive */
@@ -216,6 +429,19 @@ st.markdown("""
 
         [data-testid="stMetricValue"] {
             font-size: 1.4rem;
+        }
+
+        /* Réduire animations sur mobile pour performance */
+        * {
+            animation-duration: 0.3s !important;
+        }
+    }
+
+    /* Disable animations for reduced motion preference */
+    @media (prefers-reduced-motion: reduce) {
+        * {
+            animation: none !important;
+            transition: none !important;
         }
     }
 </style>
