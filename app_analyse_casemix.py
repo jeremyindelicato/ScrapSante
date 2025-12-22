@@ -946,6 +946,13 @@ with tab2:
     col1, col2 = st.columns(2)
 
     with col1:
+        # Info discrète pour guider l'utilisateur
+        st.markdown("""
+        <div style="background: linear-gradient(135deg, #F0F8FF, #FFF9E6); padding: 8px 12px; border-radius: 6px; margin-bottom: 10px; border-left: 3px solid #FFB500; font-size: 0.8rem;">
+            💡 <strong>Comment lire ce graphique :</strong> Taille du cercle = volume d'activité • Position = DMS vs âge moyen
+        </div>
+        """, unsafe_allow_html=True)
+
         # Scatter: DMS vs Age
         fig = px.scatter(
             df_detail,
