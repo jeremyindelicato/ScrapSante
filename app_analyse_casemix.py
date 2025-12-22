@@ -905,22 +905,34 @@ with tab1:
             # Variation annuelle
             df_annee['Variation'] = df_annee['Effectif'].pct_change() * 100
 
-            fig = px.bar(
-                df_annee[df_annee['Variation'].notna()],
-                x='Annee',
-                y='Variation',
-                title="Variation Annuelle (%)",
-                color='Variation',
-                color_continuous_scale=['#823B8A', '#BB7702', '#307E84'],
-                text='Variation'
+            # Filtrer seulement les variations valides
+            df_var = df_annee[df_annee['Variation'].notna()].copy()
+
+            # Couleurs conditionnelles : vert si positif, rouge si négatif
+            df_var['Couleur'] = df_var['Variation'].apply(
+                lambda x: COLORS['secondary'] if x >= 0 else COLORS['primary']
             )
-            fig.update_traces(texttemplate='%{text:+.1f}%', textposition='outside')
+
+            fig = go.Figure()
+
+            for idx, row in df_var.iterrows():
+                fig.add_trace(go.Bar(
+                    x=[row['Annee']],
+                    y=[row['Variation']],
+                    marker_color=row['Couleur'],
+                    text=[f"{row['Variation']:+.1f}%"],
+                    textposition='outside',
+                    showlegend=False,
+                    hovertemplate=f"<b>{int(row['Annee'])}</b><br>Variation: {row['Variation']:+.1f}%<extra></extra>"
+                ))
+
             fig.update_layout(
+                title="Variation Annuelle de l'Effectif (%)",
                 height=350,
-                showlegend=False,
-                xaxis=dict(title=''),
-                yaxis=dict(title='Variation (%)'),
-                margin=dict(l=20, r=20, t=40, b=20)
+                xaxis=dict(title='', type='category'),
+                yaxis=dict(title='Variation (%)', zeroline=True, zerolinewidth=2, zerolinecolor='#999'),
+                margin=dict(l=20, r=20, t=40, b=20),
+                bargap=0.3
             )
             st.plotly_chart(fig, width="stretch")
 
