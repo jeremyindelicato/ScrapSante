@@ -776,29 +776,11 @@ df_filtered = st.session_state.df_filtered
 
 nom_etab = finess_mapping.get(etablissement_selectionne, 'Inconnu')  # FIX: Ne pas filtrer df ici!
 
-# Lire le SVG de l'hôpital
-hospital_svg_path = Path("assets/hospital.svg")
-if hospital_svg_path.exists():
-    with open(hospital_svg_path, 'r', encoding='utf-8') as f:
-        hospital_svg_content = f.read()
-        # Extraire juste le contenu SVG et le redimensionner
-        hospital_svg = hospital_svg_content.replace('<?xml version="1.0" encoding="UTF-8"?>', '').strip()
-        # Forcer les dimensions pour l'affichage
-        hospital_svg = hospital_svg.replace('<svg ', '<svg width="48" height="48" ')
-else:
-    hospital_svg = ""
-
+# En-tête avec informations de l'établissement
 st.markdown(f"""
 <div class="custom-header">
-    <div style="display: flex; align-items: center; gap: 1rem; flex-wrap: wrap;">
-        <div class="header-icon" style="flex-shrink: 0; opacity: 0.9; filter: drop-shadow(0 2px 4px rgba(0,0,0,0.1));">
-            {hospital_svg}
-        </div>
-        <div class="header-content" style="flex-grow: 1; min-width: 250px;">
-            <h1>{nom_etab}</h1>
-            <p>FINESS: {etablissement_selectionne} • Période: {', '.join(map(str, annees_selectionnees)) if annees_selectionnees else 'Toutes années'}</p>
-        </div>
-    </div>
+    <h1>🏥 {nom_etab}</h1>
+    <p>FINESS: {etablissement_selectionne} • Période: {', '.join(map(str, annees_selectionnees)) if annees_selectionnees else 'Toutes années'}</p>
 </div>
 """, unsafe_allow_html=True)
 
