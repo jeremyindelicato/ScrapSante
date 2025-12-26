@@ -1061,6 +1061,50 @@ with tab2:
 with tab3:
     st.markdown('<div class="section-title">🗺️ Répartition Géographique de l\'Activité Hospitalière</div>', unsafe_allow_html=True)
 
+    st.info("🌍 **Vue d'ensemble nationale** : Cette carte affiche l'activité de tous les établissements. Utilisez les filtres ci-dessous pour affiner votre analyse.")
+
+    # Filtres dédiés pour la carte
+    col_filter1, col_filter2, col_filter3 = st.columns(3)
+
+    with col_filter1:
+        # Filtre par établissement
+        etab_options_map = ['Tous les établissements'] + sorted(df['Finess'].unique().tolist())
+        etab_filter_map = st.selectbox(
+            "Filtrer par établissement",
+            options=etab_options_map,
+            key="map_etab_filter"
+        )
+
+    with col_filter2:
+        # Filtre par département
+        dept_options_map = ['Tous les départements'] + sorted(df['Nom_Departement'].dropna().unique().tolist())
+        dept_filter_map = st.selectbox(
+            "Filtrer par département",
+            options=dept_options_map,
+            key="map_dept_filter"
+        )
+
+    with col_filter3:
+        # Filtre par année
+        annee_options_map = ['Toutes les années'] + sorted(df['Annee'].unique().tolist())
+        annee_filter_map = st.selectbox(
+            "Filtrer par année",
+            options=annee_options_map,
+            key="map_annee_filter"
+        )
+
+    # Appliquer les filtres
+    df_map = df.copy()
+
+    if etab_filter_map != 'Tous les établissements':
+        df_map = df_map[df_map['Finess'] == etab_filter_map]
+
+    if dept_filter_map != 'Tous les départements':
+        df_map = df_map[df_map['Nom_Departement'] == dept_filter_map]
+
+    if annee_filter_map != 'Toutes les années':
+        df_map = df_map[df_map['Annee'] == annee_filter_map]
+
     # Charger le GeoJSON des départements
     geojson_path = Path("departements.geojson")
     if not geojson_path.exists():
@@ -1070,13 +1114,31 @@ with tab3:
             departements_geojson = json.load(f)
 
         # Agréger les données par département
-        if 'Departement_Number' in df_filtered.columns and 'Nom_Departement' in df_filtered.columns:
-            df_dept = df_filtered.groupby(['Departement_Number', 'Nom_Departement'], as_index=False).agg({
+        if 'Departement_Number' in df_map.columns and 'Nom_Departement' in df_map.columns:
+            df_dept = df_map.groupby(['Departement_Number', 'Nom_Departement'], as_index=False).agg({
                 'Effectif': 'sum',
-                'DMS': lambda x: np.average(x, weights=df_filtered.loc[x.index, 'Effectif']) if df_filtered.loc[x.index, 'Effectif'].sum() > 0 else 0,
-                'Age_Moyen': lambda x: np.average(x, weights=df_filtered.loc[x.index, 'Effectif']) if df_filtered.loc[x.index, 'Effectif'].sum() > 0 else 0,
-                'Taux_Deces': lambda x: np.average(x, weights=df_filtered.loc[x.index, 'Effectif']) if df_filtered.loc[x.index, 'Effectif'].sum() > 0 else 0
+                'DMS': lambda x: np.average(x, weights=df_map.loc[x.index, 'Effectif']) if df_map.loc[x.index, 'Effectif'].sum() > 0 else 0,
+                'Age_Moyen': lambda x: np.average(x, weights=df_map.loc[x.index, 'Effectif']) if df_map.loc[x.index, 'Effectif'].sum() > 0 else 0,
+                'Taux_Deces': lambda x: np.average(x, weights=df_map.loc[x.index, 'Effectif']) if df_map.loc[x.index, 'Effectif'].sum() > 0 else 0
             })
+
+            # Calculer le nombre d'établissements par département
+            df_nb_etab = df_map.groupby('Departement_Number')['Finess'].nunique().reset_index()
+            df_nb_etab.columns = ['Departement_Number', 'Nb_Etablissements']
+            df_dept = df_dept.merge(df_nb_etab, on='Departement_Number', how='left')
+
+            # Titre dynamique selon les filtres
+            titre_filtre = []
+            if etab_filter_map != 'Tous les établissements':
+                titre_filtre.append(f"Établissement: {finess_mapping.get(etab_filter_map, etab_filter_map)}")
+            if dept_filter_map != 'Tous les départements':
+                titre_filtre.append(f"Département: {dept_filter_map}")
+            if annee_filter_map != 'Toutes les années':
+                titre_filtre.append(f"Année: {annee_filter_map}")
+
+            titre_carte = "Répartition de l'activité par département"
+            if titre_filtre:
+                titre_carte += f" - {' | '.join(titre_filtre)}"
 
             # Créer la carte choropleth
             fig_map = px.choropleth(
@@ -1089,6 +1151,7 @@ with tab3:
                 hover_data={
                     'Departement_Number': True,
                     'Effectif': ':,',
+                    'Nb_Etablissements': True,
                     'DMS': ':.1f',
                     'Age_Moyen': ':.0f',
                     'Taux_Deces': ':.2f'
@@ -1096,12 +1159,13 @@ with tab3:
                 color_continuous_scale='YlOrRd',
                 labels={
                     'Effectif': 'Effectif total',
+                    'Nb_Etablissements': 'Nb établissements',
                     'DMS': 'DMS moyenne (jours)',
                     'Age_Moyen': 'Âge moyen (ans)',
                     'Taux_Deces': 'Taux de décès (%)',
                     'Departement_Number': 'Département'
                 },
-                title=f"Répartition de l'activité par département - {nom_etab}"
+                title=titre_carte
             )
 
             # Ajuster la vue sur la France
@@ -1130,6 +1194,7 @@ with tab3:
             # Formater le tableau
             df_dept_display = df_dept_sorted.copy()
             df_dept_display['Effectif'] = df_dept_display['Effectif'].apply(lambda x: f"{x:,.0f}".replace(',', ' '))
+            df_dept_display['Nb_Etablissements'] = df_dept_display['Nb_Etablissements'].astype(int)
             df_dept_display['DMS'] = df_dept_display['DMS'].apply(lambda x: f"{x:.1f}")
             df_dept_display['Age_Moyen'] = df_dept_display['Age_Moyen'].apply(lambda x: f"{x:.0f}")
             df_dept_display['Taux_Deces'] = df_dept_display['Taux_Deces'].apply(lambda x: f"{x:.2f}%")
@@ -1137,6 +1202,7 @@ with tab3:
             df_dept_display = df_dept_display.rename(columns={
                 'Departement_Number': 'N° Dept',
                 'Nom_Departement': 'Département',
+                'Nb_Etablissements': 'Nb étab.',
                 'DMS': 'DMS moy.',
                 'Age_Moyen': 'Âge moy.',
                 'Taux_Deces': 'Taux décès'
@@ -1156,11 +1222,12 @@ with tab3:
                 st.metric("Département principal", f"{dept_max['Nom_Departement']}", f"{dept_max['Effectif']:,.0f}".replace(',', ' '))
 
             with col3:
-                concentration = (df_dept.nlargest(3, 'Effectif')['Effectif'].sum() / df_dept['Effectif'].sum() * 100)
+                concentration = (df_dept.nlargest(3, 'Effectif')['Effectif'].sum() / df_dept['Effectif'].sum() * 100) if len(df_dept) >= 3 else 100
                 st.metric("Concentration Top 3", f"{concentration:.1f}%")
 
             with col4:
-                st.metric("Effectif total", f"{df_dept['Effectif'].sum():,.0f}".replace(',', ' '))
+                nb_etab_total = df_map['Finess'].nunique()
+                st.metric("Établissements", f"{nb_etab_total}")
 
         else:
             st.error("Les colonnes 'Departement_Number' et 'Nom_Departement' sont manquantes dans les données.")
