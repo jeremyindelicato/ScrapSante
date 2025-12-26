@@ -14,6 +14,7 @@ from pathlib import Path
 import numpy as np
 from dotenv import load_dotenv
 import os
+import json
 
 # Charger les variables d'environnement
 load_dotenv()
@@ -759,9 +760,10 @@ def compute_classification_data(df_filtered, column_name):
 # ONGLETS
 # ========================================
 
-tab1, tab2, tab3, tab4, tab5 = st.tabs([
+tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
     "Vue d'ensemble",
     "Sélection Filtrée",
+    "🗺️ Carte de France",
     "Classifications",
     "Évolution temporelle",
     "Export données"
@@ -1055,8 +1057,116 @@ with tab2:
     else:
         st.warning("⚠️ Aucune donnée ne correspond à cette sélection de filtres.")
 
-# TAB 3: CLASSIFICATIONS
+# TAB 3: CARTE DE FRANCE INTERACTIVE
 with tab3:
+    st.markdown('<div class="section-title">🗺️ Répartition Géographique de l\'Activité Hospitalière</div>', unsafe_allow_html=True)
+
+    # Charger le GeoJSON des départements
+    geojson_path = Path("departements.geojson")
+    if not geojson_path.exists():
+        st.error("Le fichier departements.geojson est introuvable. Veuillez le placer à la racine du projet.")
+    else:
+        with open(geojson_path, 'r', encoding='utf-8') as f:
+            departements_geojson = json.load(f)
+
+        # Agréger les données par département
+        if 'Departement_Number' in df_filtered.columns and 'Nom_Departement' in df_filtered.columns:
+            df_dept = df_filtered.groupby(['Departement_Number', 'Nom_Departement'], as_index=False).agg({
+                'Effectif': 'sum',
+                'DMS': lambda x: np.average(x, weights=df_filtered.loc[x.index, 'Effectif']) if df_filtered.loc[x.index, 'Effectif'].sum() > 0 else 0,
+                'Age_Moyen': lambda x: np.average(x, weights=df_filtered.loc[x.index, 'Effectif']) if df_filtered.loc[x.index, 'Effectif'].sum() > 0 else 0,
+                'Taux_Deces': lambda x: np.average(x, weights=df_filtered.loc[x.index, 'Effectif']) if df_filtered.loc[x.index, 'Effectif'].sum() > 0 else 0
+            })
+
+            # Créer la carte choropleth
+            fig_map = px.choropleth(
+                df_dept,
+                geojson=departements_geojson,
+                locations='Departement_Number',
+                featureidkey="properties.code",
+                color='Effectif',
+                hover_name='Nom_Departement',
+                hover_data={
+                    'Departement_Number': True,
+                    'Effectif': ':,',
+                    'DMS': ':.1f',
+                    'Age_Moyen': ':.0f',
+                    'Taux_Deces': ':.2f'
+                },
+                color_continuous_scale='YlOrRd',
+                labels={
+                    'Effectif': 'Effectif total',
+                    'DMS': 'DMS moyenne (jours)',
+                    'Age_Moyen': 'Âge moyen (ans)',
+                    'Taux_Deces': 'Taux de décès (%)',
+                    'Departement_Number': 'Département'
+                },
+                title=f"Répartition de l'activité par département - {nom_etab}"
+            )
+
+            # Ajuster la vue sur la France
+            fig_map.update_geos(
+                fitbounds="locations",
+                visible=False
+            )
+
+            fig_map.update_layout(
+                height=700,
+                margin={"r": 0, "t": 50, "l": 0, "b": 0},
+                coloraxis_colorbar={
+                    'title': 'Effectif total',
+                    'thickness': 20,
+                    'len': 0.7
+                }
+            )
+
+            st.plotly_chart(fig_map, use_container_width=True)
+
+            # Tableau récapitulatif des départements
+            st.markdown("### 📊 Top 10 Départements par Effectif")
+
+            df_dept_sorted = df_dept.sort_values('Effectif', ascending=False).head(10)
+
+            # Formater le tableau
+            df_dept_display = df_dept_sorted.copy()
+            df_dept_display['Effectif'] = df_dept_display['Effectif'].apply(lambda x: f"{x:,.0f}".replace(',', ' '))
+            df_dept_display['DMS'] = df_dept_display['DMS'].apply(lambda x: f"{x:.1f}")
+            df_dept_display['Age_Moyen'] = df_dept_display['Age_Moyen'].apply(lambda x: f"{x:.0f}")
+            df_dept_display['Taux_Deces'] = df_dept_display['Taux_Deces'].apply(lambda x: f"{x:.2f}%")
+
+            df_dept_display = df_dept_display.rename(columns={
+                'Departement_Number': 'N° Dept',
+                'Nom_Departement': 'Département',
+                'DMS': 'DMS moy.',
+                'Age_Moyen': 'Âge moy.',
+                'Taux_Deces': 'Taux décès'
+            })
+
+            st.dataframe(df_dept_display, use_container_width=True, hide_index=True)
+
+            # KPIs géographiques
+            st.markdown("### 🎯 Indicateurs Géographiques")
+            col1, col2, col3, col4 = st.columns(4)
+
+            with col1:
+                st.metric("Départements couverts", f"{len(df_dept)}")
+
+            with col2:
+                dept_max = df_dept.loc[df_dept['Effectif'].idxmax()]
+                st.metric("Département principal", f"{dept_max['Nom_Departement']}", f"{dept_max['Effectif']:,.0f}".replace(',', ' '))
+
+            with col3:
+                concentration = (df_dept.nlargest(3, 'Effectif')['Effectif'].sum() / df_dept['Effectif'].sum() * 100)
+                st.metric("Concentration Top 3", f"{concentration:.1f}%")
+
+            with col4:
+                st.metric("Effectif total", f"{df_dept['Effectif'].sum():,.0f}".replace(',', ' '))
+
+        else:
+            st.error("Les colonnes 'Departement_Number' et 'Nom_Departement' sont manquantes dans les données.")
+
+# TAB 4: CLASSIFICATIONS
+with tab4:
     st.markdown('<div class="section-title">Analyses par Classification</div>', unsafe_allow_html=True)
 
     col1, col2 = st.columns(2)
@@ -1157,8 +1267,8 @@ with tab3:
         )
         st.plotly_chart(fig, width="stretch")
 
-# TAB 4: ÉVOLUTION TEMPORELLE
-with tab4:
+# TAB 5: ÉVOLUTION TEMPORELLE
+with tab5:
     st.markdown('<div class="section-title">Évolution Temporelle</div>', unsafe_allow_html=True)
 
     if len(annees_selectionnees) > 1:
@@ -1341,8 +1451,8 @@ with tab4:
     else:
         st.info("Sélectionnez plusieurs années pour voir l'évolution temporelle")
 
-# TAB 5: EXPORT DONNÉES
-with tab5:
+# TAB 6: EXPORT DONNÉES
+with tab6:
     st.markdown('<div class="section-title">Export des Données</div>', unsafe_allow_html=True)
 
     # Options d'affichage
