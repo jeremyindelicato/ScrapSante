@@ -15,6 +15,7 @@ import numpy as np
 from dotenv import load_dotenv
 import os
 import json
+import base64
 
 # Charger les variables d'environnement
 load_dotenv()
@@ -776,11 +777,29 @@ df_filtered = st.session_state.df_filtered
 
 nom_etab = finess_mapping.get(etablissement_selectionne, 'Inconnu')  # FIX: Ne pas filtrer df ici!
 
+# Lire et encoder le SVG de l'hôpital
+hospital_svg_path = Path("assets/hospital.svg")
+if hospital_svg_path.exists():
+    with open(hospital_svg_path, 'r', encoding='utf-8') as f:
+        svg_content = f.read()
+        # Encoder en base64 pour éviter les problèmes d'échappement
+        svg_b64 = base64.b64encode(svg_content.encode('utf-8')).decode('utf-8')
+        hospital_svg = f'<img src="data:image/svg+xml;base64,{svg_b64}" style="width: 48px; height: 48px; display: block;" />'
+else:
+    hospital_svg = ""
+
 # En-tête avec informations de l'établissement
 st.markdown(f"""
 <div class="custom-header">
-    <h1>🏥 {nom_etab}</h1>
-    <p>FINESS: {etablissement_selectionne} • Période: {', '.join(map(str, annees_selectionnees)) if annees_selectionnees else 'Toutes années'}</p>
+    <div style="display: flex; align-items: center; gap: 1rem; flex-wrap: wrap;">
+        <div class="header-icon" style="flex-shrink: 0;">
+            {hospital_svg}
+        </div>
+        <div class="header-content" style="flex: 1; min-width: 250px;">
+            <h1>{nom_etab}</h1>
+            <p>FINESS: {etablissement_selectionne} • Période: {', '.join(map(str, annees_selectionnees)) if annees_selectionnees else 'Toutes années'}</p>
+        </div>
+    </div>
 </div>
 """, unsafe_allow_html=True)
 
