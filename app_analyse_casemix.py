@@ -596,21 +596,6 @@ with st.sidebar:
     )
 
     st.markdown("---")
-    st.markdown("### Filtres avancés")
-
-    # Filtre par classification
-    da_selectionne = st.selectbox("Domaine d'activité (DA)", options=filter_opts['da'])
-    classif_selectionne = st.selectbox("Classification PKCS", options=filter_opts['classif'])
-
-    # Recherche par libellé
-    st.markdown("---")
-    recherche_libelle = st.text_input(
-        "Recherche",
-        placeholder="Rechercher un libellé GHM...",
-        help="Ex: arthroplastie, coronaire..."
-    )
-
-    st.markdown("---")
 
     # Statistiques
     st.info(f"**Données chargées**\n\n{len(df):,} lignes\n\n{df['Finess'].nunique()} établissements")
@@ -621,40 +606,28 @@ with st.sidebar:
         st.rerun()
 
 # ========================================
-# FILTRAGE ULTRA-OPTIMISE AVEC INDEX ET SESSION STATE
+# FILTRAGE ULTRA-OPTIMISE AVEC SESSION STATE
 # ========================================
 
-def filter_data_ultra_fast(finess, annees, da, classif, recherche):
-    """Filtrage ultra-rapide avec masque booleen (plus rapide que .loc sur MultiIndex)"""
-    # Filtrage direct par Finess avec masque booleen - BEAUCOUP plus rapide
+def filter_data_ultra_fast(finess, annees):
+    """Filtrage ultra-rapide avec masque booleen"""
+    # Filtrage direct par Finess avec masque booleen
     mask = (df['Finess'] == finess)
 
-    # Appliquer tous les filtres d'un coup
+    # Filtrer par années
     if annees:
         mask &= df['Annee'].isin(annees)
-
-    if da != 'Tous':
-        mask &= (df['DA'] == da)
-
-    if classif != 'Tous':
-        mask &= (df['Classif PKCS'] == classif)
-
-    if recherche:
-        mask &= df['Libelle'].str.contains(recherche, case=False, na=False)
 
     # Un seul filtrage à la fin - beaucoup plus rapide
     return df[mask].copy()
 
 # Utilisation de session_state pour garder le dernier filtrage en memoire
-cache_key = f"{etablissement_selectionne}_{tuple(annees_selectionnees) if annees_selectionnees else ()}_{da_selectionne}_{classif_selectionne}_{recherche_libelle}"
+cache_key = f"{etablissement_selectionne}_{tuple(annees_selectionnees) if annees_selectionnees else ()}"
 
 if 'last_cache_key' not in st.session_state or st.session_state.last_cache_key != cache_key:
     st.session_state.df_filtered = filter_data_ultra_fast(
         etablissement_selectionne,
-        tuple(annees_selectionnees) if annees_selectionnees else (),
-        da_selectionne,
-        classif_selectionne,
-        recherche_libelle
+        tuple(annees_selectionnees) if annees_selectionnees else ()
     )
     st.session_state.last_cache_key = cache_key
 
@@ -788,20 +761,21 @@ def compute_classification_data(df_filtered, column_name):
 
 tab1, tab2, tab3, tab4, tab5 = st.tabs([
     "Vue d'ensemble",
-    "Analyses détaillées",
+    "Sélection Filtrée",
     "Classifications",
     "Évolution temporelle",
     "Export données"
 ])
 
-# TAB 1: VUE D'ENSEMBLE
+# TAB 1: VUE D'ENSEMBLE (FUSION DES 2 ANCIENS ONGLETS)
 with tab1:
     st.markdown('<div class="section-title">Vue d\'ensemble de l\'activité</div>', unsafe_allow_html=True)
 
+    # Première ligne: Top 10 + Distributions
     col1, col2 = st.columns(2)
 
     with col1:
-        # Top 10 Libellés (CACHE)
+        # Top 10 Libellés
         df_top = compute_top_libelles(df_filtered, 10)
 
         fig = px.bar(
@@ -828,7 +802,6 @@ with tab1:
     with col2:
         # Distribution de l'âge
         fig = go.Figure()
-
         fig.add_trace(go.Histogram(
             x=df_filtered['Age_Moyen'],
             nbinsx=30,
@@ -836,8 +809,6 @@ with tab1:
             opacity=0.7,
             name='Distribution'
         ))
-
-        # Ajouter ligne médiane
         mediane_age = df_filtered['Age_Moyen'].median()
         fig.add_vline(
             x=mediane_age,
@@ -846,7 +817,6 @@ with tab1:
             annotation_text=f"Médiane: {mediane_age:.0f} ans",
             annotation_position="top"
         )
-
         fig.update_layout(
             title="Distribution de l'Âge Moyen",
             xaxis_title="Âge (années)",
@@ -859,10 +829,7 @@ with tab1:
 
         # Répartition DMS
         fig = go.Figure()
-
-        # Créer des bins pour la DMS
         df_filtered_copy = df_filtered[df_filtered['DMS'].notna()].copy()
-
         fig.add_trace(go.Histogram(
             x=df_filtered_copy['DMS'],
             nbinsx=30,
@@ -870,8 +837,6 @@ with tab1:
             opacity=0.7,
             name='Distribution'
         ))
-
-        # Ajouter ligne médiane
         mediane_dms = df_filtered_copy['DMS'].median()
         fig.add_vline(
             x=mediane_dms,
@@ -880,7 +845,6 @@ with tab1:
             annotation_text=f"Médiane: {mediane_dms:.1f} j",
             annotation_position="top"
         )
-
         fig.update_layout(
             title="Distribution de la Durée Moyenne de Séjour",
             xaxis_title="DMS (jours)",
@@ -891,75 +855,10 @@ with tab1:
         )
         st.plotly_chart(fig, width="stretch")
 
-    # Répartition par année (si plusieurs années)
-    if len(annees_selectionnees) > 1:
-        st.markdown('<div class="section-title">Répartition temporelle</div>', unsafe_allow_html=True)
-
-        col1, col2 = st.columns(2)
-
-        with col1:
-            df_annee = df_filtered.groupby('Annee')['Effectif'].sum().reset_index()
-
-            fig = px.bar(
-                df_annee,
-                x='Annee',
-                y='Effectif',
-                title="Effectif par Année",
-                color='Effectif',
-                color_continuous_scale=[[0, COLORS['primary']], [1, COLORS['tertiary']]],
-                text='Effectif'
-            )
-            fig.update_traces(texttemplate='%{text:,.0f}', textposition='outside')
-            fig.update_layout(
-                height=350,
-                showlegend=False,
-                xaxis=dict(title=''),
-                margin=dict(l=20, r=20, t=40, b=20)
-            )
-            st.plotly_chart(fig, width="stretch")
-
-        with col2:
-            # Variation annuelle
-            df_annee['Variation'] = df_annee['Effectif'].pct_change() * 100
-
-            # Filtrer seulement les variations valides
-            df_var = df_annee[df_annee['Variation'].notna()].copy()
-
-            # Couleurs conditionnelles : vert si positif, rouge si négatif
-            df_var['Couleur'] = df_var['Variation'].apply(
-                lambda x: COLORS['secondary'] if x >= 0 else COLORS['primary']
-            )
-
-            fig = go.Figure()
-
-            for idx, row in df_var.iterrows():
-                fig.add_trace(go.Bar(
-                    x=[row['Annee']],
-                    y=[row['Variation']],
-                    marker_color=row['Couleur'],
-                    text=[f"{row['Variation']:+.1f}%"],
-                    textposition='outside',
-                    showlegend=False,
-                    hovertemplate=f"<b>{int(row['Annee'])}</b><br>Variation: {row['Variation']:+.1f}%<extra></extra>"
-                ))
-
-            fig.update_layout(
-                title="Variation Annuelle de l'Effectif (%)",
-                height=350,
-                xaxis=dict(title='', type='category'),
-                yaxis=dict(title='Variation (%)', zeroline=True, zerolinewidth=2, zerolinecolor='#999'),
-                margin=dict(l=20, r=20, t=40, b=20),
-                bargap=0.3
-            )
-            st.plotly_chart(fig, width="stretch")
-
-# TAB 2: ANALYSES DÉTAILLÉES
-with tab2:
+    # Analyses détaillées
     st.markdown('<div class="section-title">Analyses Détaillées</div>', unsafe_allow_html=True)
 
-    # Top 20 avec métriques complètes (CACHE - évite recalcul weighted averages!)
     df_detail = compute_detailed_table(df_filtered)
-
     col1, col2 = st.columns(2)
 
     with col1:
@@ -1017,12 +916,10 @@ with tab2:
 
     # Heatmap de corrélation
     st.markdown('<div class="section-title">Matrice de Corrélation</div>', unsafe_allow_html=True)
-
     df_corr = df_filtered[['Effectif', 'DMS', 'Age_Moyen', 'Sexe_Ratio', 'Taux_Deces']].dropna()
 
     if len(df_corr) > 10:
         correlation = df_corr.corr()
-
         fig = go.Figure(data=go.Heatmap(
             z=correlation.values,
             x=['Effectif', 'DMS', 'Âge', 'Sexe Ratio', 'Taux Décès'],
@@ -1034,7 +931,6 @@ with tab2:
             textfont={"size": 12},
             colorbar=dict(title="Corrélation")
         ))
-
         fig.update_layout(
             title="Corrélation entre les Indicateurs",
             height=400,
@@ -1044,22 +940,120 @@ with tab2:
 
     # Tableau détaillé
     st.markdown('<div class="section-title">Tableau Détaillé (Top 20)</div>', unsafe_allow_html=True)
-
     df_display = df_detail.copy()
     df_display['% du Total'] = (df_display['Effectif'] / total_effectif * 100).round(1)
     df_display = df_display[['Libelle', 'Effectif', '% du Total', 'DMS', 'Age_Moyen', 'Taux_Deces']]
     df_display.columns = ['Libellé GHM', 'Effectif', '% Total', 'DMS (j)', 'Âge', 'Décès (%)']
-
     df_display['DMS (j)'] = df_display['DMS (j)'].round(1)
     df_display['Âge'] = df_display['Âge'].round(0)
     df_display['Décès (%)'] = df_display['Décès (%)'].round(2)
-
     st.dataframe(
         df_display,
         width="stretch",
         hide_index=True,
         height=400
     )
+
+# TAB 2: SÉLECTION FILTRÉE (NOUVEAU!)
+with tab2:
+    st.markdown('<div class="section-title">Sélection Filtrée - Analyse Approfondie</div>', unsafe_allow_html=True)
+
+    st.info("🎯 **Filtrez vos données** : Sélectionnez les critères ci-dessous pour affiner votre analyse. Le graphique se mettra à jour automatiquement.")
+
+    # Créer les filtres dynamiques sur 3 colonnes
+    col1, col2, col3 = st.columns(3)
+
+    with col1:
+        # Récupérer les valeurs uniques présentes dans df_filtered
+        ghm_options = ['Tous'] + sorted([x for x in df_filtered['Code_GHM'].unique() if pd.notna(x)])
+        ghm_filter = st.selectbox("GHM", options=ghm_options)
+
+        mco_options = ['Tous'] + sorted([x for x in df_filtered['MCO'].unique() if pd.notna(x) and x != 'Non renseigné'])
+        mco_filter = st.selectbox("MCO", options=mco_options)
+
+        cas_options = ['Tous'] + sorted([x for x in df_filtered['CAS'].unique() if pd.notna(x) and x != 'Non renseigné'])
+        cas_filter = st.selectbox("CAS", options=cas_options)
+
+    with col2:
+        da_options = ['Tous'] + sorted([x for x in df_filtered['DA'].unique() if pd.notna(x) and x != 'Non renseigné'])
+        da_filter = st.selectbox("Domaine d'Activité (DA)", options=da_options)
+
+        gp_options = ['Tous'] + sorted([x for x in df_filtered['GP'].unique() if pd.notna(x) and x != 'Non renseigné'])
+        gp_filter = st.selectbox("GP", options=gp_options)
+
+        ga_options = ['Tous'] + sorted([x for x in df_filtered['GA'].unique() if pd.notna(x) and x != 'Non renseigné'])
+        ga_filter = st.selectbox("GA", options=ga_options)
+
+    with col3:
+        classif_options = ['Tous'] + sorted([x for x in df_filtered['Classif PKCS'].unique() if pd.notna(x) and x != 'Non renseigné'])
+        classif_filter = st.selectbox("Classification PKCS", options=classif_options)
+
+        libracine_options = ['Tous'] + sorted([x for x in df_filtered['Libracine'].unique() if pd.notna(x) and x != 'Non renseigné'])
+        libracine_filter = st.selectbox("Libracine", options=libracine_options)
+
+        regroup_options = ['Tous'] + sorted([x for x in df_filtered['Regroupement GHM PH'].unique() if pd.notna(x) and x != 'Non renseigné'])
+        regroup_filter = st.selectbox("Regroupement GHM PH", options=regroup_options)
+
+    # Appliquer les filtres
+    df_selection_filtree = df_filtered.copy()
+
+    if ghm_filter != 'Tous':
+        df_selection_filtree = df_selection_filtree[df_selection_filtree['Code_GHM'] == ghm_filter]
+    if mco_filter != 'Tous':
+        df_selection_filtree = df_selection_filtree[df_selection_filtree['MCO'] == mco_filter]
+    if cas_filter != 'Tous':
+        df_selection_filtree = df_selection_filtree[df_selection_filtree['CAS'] == cas_filter]
+    if da_filter != 'Tous':
+        df_selection_filtree = df_selection_filtree[df_selection_filtree['DA'] == da_filter]
+    if gp_filter != 'Tous':
+        df_selection_filtree = df_selection_filtree[df_selection_filtree['GP'] == gp_filter]
+    if ga_filter != 'Tous':
+        df_selection_filtree = df_selection_filtree[df_selection_filtree['GA'] == ga_filter]
+    if classif_filter != 'Tous':
+        df_selection_filtree = df_selection_filtree[df_selection_filtree['Classif PKCS'] == classif_filter]
+    if libracine_filter != 'Tous':
+        df_selection_filtree = df_selection_filtree[df_selection_filtree['Libracine'] == libracine_filter]
+    if regroup_filter != 'Tous':
+        df_selection_filtree = df_selection_filtree[df_selection_filtree['Regroupement GHM PH'] == regroup_filter]
+
+    # Afficher le graphique "Effectif par Année"
+    st.markdown("---")
+    st.markdown('<div class="section-title">Effectif par Année (Données Filtrées)</div>', unsafe_allow_html=True)
+
+    if not df_selection_filtree.empty:
+        df_annee_filtered = df_selection_filtree.groupby('Annee')['Effectif'].sum().reset_index()
+
+        fig = px.bar(
+            df_annee_filtered,
+            x='Annee',
+            y='Effectif',
+            title=f"Effectif par Année ({len(df_selection_filtree):,} lignes sélectionnées)",
+            color='Effectif',
+            color_continuous_scale=[[0, COLORS['primary']], [1, COLORS['tertiary']]],
+            text='Effectif'
+        )
+        fig.update_traces(texttemplate='%{text:,.0f}', textposition='outside')
+        fig.update_layout(
+            height=450,
+            showlegend=False,
+            xaxis=dict(title='Année'),
+            yaxis=dict(title='Effectif'),
+            margin=dict(l=20, r=20, t=40, b=40)
+        )
+        st.plotly_chart(fig, width="stretch")
+
+        # Statistiques de la sélection
+        col1, col2, col3, col4 = st.columns(4)
+        with col1:
+            st.metric("Lignes sélectionnées", f"{len(df_selection_filtree):,}")
+        with col2:
+            st.metric("Effectif total", f"{df_selection_filtree['Effectif'].sum():,}")
+        with col3:
+            st.metric("DMS moyenne", f"{(df_selection_filtree['DMS'] * df_selection_filtree['Effectif']).sum() / df_selection_filtree['Effectif'].sum():.1f} j" if df_selection_filtree['Effectif'].sum() > 0 else "N/A")
+        with col4:
+            st.metric("Âge moyen", f"{(df_selection_filtree['Age_Moyen'] * df_selection_filtree['Effectif']).sum() / df_selection_filtree['Effectif'].sum():.0f} ans" if df_selection_filtree['Effectif'].sum() > 0 else "N/A")
+    else:
+        st.warning("⚠️ Aucune donnée ne correspond à cette sélection de filtres.")
 
 # TAB 3: CLASSIFICATIONS
 with tab3:
