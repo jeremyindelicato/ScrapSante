@@ -418,23 +418,159 @@ st.markdown("""
         animation: pulse 2s infinite;
     }
 
-    /* Responsive */
-    @media (max-width: 768px) {
+    /* Responsive - Mobile First */
+    @media (max-width: 1024px) {
+        /* Tablettes */
         .block-container {
+            padding: 1.5rem 1rem;
+        }
+
+        .custom-header {
             padding: 1rem;
         }
 
+        [data-testid="stMetricValue"] {
+            font-size: 1.6rem;
+        }
+
+        /* Graphiques plus compacts */
+        .plotly-graph-div {
+            margin-bottom: 1rem;
+        }
+    }
+
+    @media (max-width: 768px) {
+        /* Mobile */
+        .block-container {
+            padding: 0.75rem 0.5rem;
+        }
+
+        .custom-header {
+            padding: 0.75rem;
+            margin-bottom: 1rem;
+        }
+
         .custom-header h1 {
-            font-size: 1.4rem;
+            font-size: 1.2rem;
+            line-height: 1.3;
+        }
+
+        .custom-header p {
+            font-size: 0.75rem;
+        }
+
+        /* Cacher l'icône sur très petit écran */
+        .header-icon {
+            display: none !important;
+        }
+
+        /* KPIs en colonne sur mobile */
+        [data-testid="stMetric"] {
+            padding: 0.75rem;
+            margin-bottom: 0.5rem;
         }
 
         [data-testid="stMetricValue"] {
-            font-size: 1.4rem;
+            font-size: 1.3rem;
+        }
+
+        [data-testid="stMetricLabel"] {
+            font-size: 0.75rem;
+        }
+
+        /* Tabs plus compacts */
+        .stTabs [data-baseweb="tab-list"] {
+            gap: 0.5rem;
+            flex-wrap: wrap;
+        }
+
+        .stTabs [data-baseweb="tab"] {
+            padding: 0.5rem 0.75rem;
+            font-size: 0.85rem;
+        }
+
+        /* Titres de section plus petits */
+        .section-title {
+            font-size: 1.1rem;
+            margin: 1rem 0 0.75rem 0;
+        }
+
+        /* Sidebar plus étroite */
+        [data-testid="stSidebar"] {
+            min-width: 250px !important;
+        }
+
+        /* Selectbox et filtres */
+        .stSelectbox label, .stMultiSelect label {
+            font-size: 0.85rem;
+        }
+
+        /* Graphiques responsive */
+        .plotly-graph-div {
+            margin: 0.5rem 0;
+        }
+
+        /* Tableaux scrollables */
+        [data-testid="stDataFrame"] {
+            font-size: 0.8rem;
+            max-width: 100%;
+            overflow-x: auto;
         }
 
         /* Réduire animations sur mobile pour performance */
         * {
-            animation-duration: 0.3s !important;
+            animation-duration: 0.2s !important;
+        }
+
+        /* Boutons pleine largeur */
+        .stButton > button {
+            font-size: 0.9rem;
+            padding: 0.5rem;
+        }
+    }
+
+    @media (max-width: 480px) {
+        /* Très petits écrans */
+        .block-container {
+            padding: 0.5rem 0.25rem;
+        }
+
+        .custom-header h1 {
+            font-size: 1rem;
+        }
+
+        .custom-header p {
+            font-size: 0.7rem;
+            line-height: 1.4;
+        }
+
+        [data-testid="stMetricValue"] {
+            font-size: 1.1rem;
+        }
+
+        [data-testid="stMetricLabel"] {
+            font-size: 0.7rem;
+        }
+
+        .section-title {
+            font-size: 1rem;
+        }
+
+        /* Colonnes en une seule colonne */
+        [data-testid="column"] {
+            min-width: 100% !important;
+        }
+
+        /* Tabs en mode scroll horizontal */
+        .stTabs [data-baseweb="tab-list"] {
+            overflow-x: auto;
+            flex-wrap: nowrap;
+        }
+
+        .stTabs [data-baseweb="tab"] {
+            font-size: 0.8rem;
+            padding: 0.4rem 0.6rem;
+            white-space: nowrap;
         }
     }
 
@@ -644,19 +780,21 @@ nom_etab = finess_mapping.get(etablissement_selectionne, 'Inconnu')  # FIX: Ne p
 hospital_svg_path = Path("assets/hospital.svg")
 if hospital_svg_path.exists():
     with open(hospital_svg_path, 'r', encoding='utf-8') as f:
-        hospital_svg = f.read()
-        # Extraire juste le SVG sans la déclaration XML
-        hospital_svg = hospital_svg.replace('<?xml version="1.0" encoding="UTF-8"?>', '').strip()
+        hospital_svg_content = f.read()
+        # Extraire juste le contenu SVG et le redimensionner
+        hospital_svg = hospital_svg_content.replace('<?xml version="1.0" encoding="UTF-8"?>', '').strip()
+        # Forcer les dimensions pour l'affichage
+        hospital_svg = hospital_svg.replace('<svg ', '<svg width="48" height="48" ')
 else:
     hospital_svg = ""
 
 st.markdown(f"""
 <div class="custom-header">
-    <div style="display: flex; align-items: center; gap: 1rem;">
-        <div style="flex-shrink: 0; opacity: 0.9; filter: drop-shadow(0 2px 4px rgba(0,0,0,0.1));">
+    <div style="display: flex; align-items: center; gap: 1rem; flex-wrap: wrap;">
+        <div class="header-icon" style="flex-shrink: 0; opacity: 0.9; filter: drop-shadow(0 2px 4px rgba(0,0,0,0.1));">
             {hospital_svg}
         </div>
-        <div style="flex-grow: 1;">
+        <div class="header-content" style="flex-grow: 1; min-width: 250px;">
             <h1>{nom_etab}</h1>
             <p>FINESS: {etablissement_selectionne} • Période: {', '.join(map(str, annees_selectionnees)) if annees_selectionnees else 'Toutes années'}</p>
         </div>
