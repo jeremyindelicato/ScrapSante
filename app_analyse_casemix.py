@@ -900,7 +900,9 @@ df_filtered = st.session_state.df_filtered
 # Déterminer le nom de l'établissement pour l'en-tête
 if etablissement_selectionne == "Tous les établissements":
     nom_etab = "Tous les établissements"
-    finess_display = f"{df_filtered['Finess'].nunique()} établissements"
+    # Sécurité: vérifier que df_filtered n'est pas vide avant de compter
+    nb_etab = df_filtered['Finess'].nunique() if not df_filtered.empty else 0
+    finess_display = f"{nb_etab} établissements"
 else:
     nom_etab = finess_mapping.get(etablissement_selectionne, 'Inconnu')
     finess_display = f"FINESS: {etablissement_selectionne}"
