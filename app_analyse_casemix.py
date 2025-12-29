@@ -887,14 +887,23 @@ def filter_data_ultra_fast(finess, annees):
     return df[mask].copy()
 
 # Utilisation de session_state pour garder le dernier filtrage en memoire
-cache_key = f"{etablissement_selectionne}_{tuple(annees_selectionnees) if annees_selectionnees else ()}"
+# Sécurité: s'assurer que les variables sont bien définies
+if not annees_selectionnees:
+    annees_selectionnees = []
+
+cache_key = f"{etablissement_selectionne}_{tuple(annees_selectionnees)}"
 
 if 'last_cache_key' not in st.session_state or st.session_state.last_cache_key != cache_key:
-    st.session_state.df_filtered = filter_data_ultra_fast(
-        etablissement_selectionne,
-        tuple(annees_selectionnees) if annees_selectionnees else ()
-    )
-    st.session_state.last_cache_key = cache_key
+    try:
+        st.session_state.df_filtered = filter_data_ultra_fast(
+            etablissement_selectionne,
+            tuple(annees_selectionnees)
+        )
+        st.session_state.last_cache_key = cache_key
+    except Exception as e:
+        st.error(f"Erreur lors du filtrage des données: {str(e)}")
+        st.exception(e)
+        st.stop()
 
 df_filtered = st.session_state.df_filtered
 
