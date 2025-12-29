@@ -845,10 +845,16 @@ with st.sidebar:
         return f"{finess} - {nom}"
 
     etablissement_options = ['Tous les établissements'] + filter_opts['finess']
+
+    # Définir l'index par défaut : CLINIQUE AMBULATOIRE CENDANEG (690784988)
+    default_finess = '690784988'
+    default_index = etablissement_options.index(default_finess) if default_finess in etablissement_options else 0
+
     etablissement_selectionne = st.selectbox(
         "Établissement",
         options=etablissement_options,
         format_func=format_etablissement,
+        index=default_index,
         help="Choisissez un établissement ou 'Tous' pour voir l'ensemble"
     )
 
