@@ -914,6 +914,25 @@ if 'last_cache_key' not in st.session_state or st.session_state.last_cache_key !
 df_filtered = st.session_state.df_filtered
 
 # ========================================
+# VÉRIFICATION DE LA TAILLE DES DONNÉES
+# ========================================
+
+# Avertissement si trop de données (risque de dépassement mémoire sur Streamlit Cloud)
+if etablissement_selectionne == "Tous les établissements":
+    nb_lignes = len(df_filtered)
+    if nb_lignes > 500000:  # Plus de 500k lignes
+        st.warning(f"""
+        ⚠️ **Volume de données important** : {nb_lignes:,} lignes à traiter
+
+        L'affichage de tous les établissements peut être lent et consommer beaucoup de mémoire.
+
+        **Recommandations :**
+        - Utilisez les filtres par année pour réduire le volume
+        - Privilégiez la vue "Carte de France" pour l'analyse multi-établissements
+        - Sélectionnez un établissement spécifique pour des analyses détaillées
+        """)
+
+# ========================================
 # EN-TÊTE
 # ========================================
 
@@ -1008,7 +1027,12 @@ def compute_cached(cache_key_suffix, compute_func):
 def compute_top_libelles(df_filtered, top_n=10):
     """Cache le top N des libellés"""
     def calc():
-        return df_filtered.groupby('Libelle', as_index=False, sort=False).agg({
+        # Optimisation : si trop de lignes, échantillonner d'abord
+        df_work = df_filtered
+        if len(df_filtered) > 1000000:
+            # Garder seulement les lignes avec les effectifs les plus élevés
+            df_work = df_filtered.nlargest(500000, 'Effectif')
+        return df_work.groupby('Libelle', as_index=False, sort=False).agg({
             'Effectif': 'sum'
         }).nlargest(top_n, 'Effectif')
     return compute_cached(f"top{top_n}", calc)
