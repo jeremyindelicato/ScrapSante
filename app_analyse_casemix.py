@@ -741,9 +741,10 @@ def load_data():
 def load_finess_mapping():
     """Charge le mapping FINESS"""
     try:
-        df = pd.read_csv('etablissements_finess.csv', sep=',', encoding='utf-8-sig', dtype=str)
-        return dict(zip(df['Finess'], df['Raison sociale']))
-    except:
+        df_mapping = pd.read_csv('etablissements_finess.csv', sep=',', encoding='utf-8-sig', dtype=str)
+        return dict(zip(df_mapping['Finess'], df_mapping['Raison sociale']))
+    except Exception as e:
+        st.warning(f"Impossible de charger le mapping FINESS: {str(e)}")
         return {}
 
 # Chargement des données
@@ -806,12 +807,16 @@ if not st.session_state.authenticated:
 @st.cache_data
 def get_filter_options():
     """Calcule les options de filtres une seule fois au lieu de à chaque rerun"""
-    return {
-        'annees': sorted(df['Annee'].unique()),
-        'finess': sorted(df['Finess'].unique()),
-        'da': ['Tous'] + sorted([x for x in df['DA'].unique() if x != 'Non renseigné']) if 'DA' in df.columns else ['Tous'],
-        'classif': ['Tous'] + sorted([x for x in df['Classif PKCS'].unique() if x != 'Non renseigné']) if 'Classif PKCS' in df.columns else ['Tous']
-    }
+    try:
+        return {
+            'annees': sorted(df['Annee'].unique()),
+            'finess': sorted(df['Finess'].unique()),
+            'da': ['Tous'] + sorted([x for x in df['DA'].unique() if x != 'Non renseigné']) if 'DA' in df.columns else ['Tous'],
+            'classif': ['Tous'] + sorted([x for x in df['Classif PKCS'].unique() if x != 'Non renseigné']) if 'Classif PKCS' in df.columns else ['Tous']
+        }
+    except Exception as e:
+        st.error(f"Erreur lors du calcul des options de filtres: {str(e)}")
+        st.stop()
 
 filter_opts = get_filter_options()
 
