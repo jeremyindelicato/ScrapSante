@@ -30,6 +30,7 @@ st.set_page_config(
 
 # CSS personnalisé - Design épuré et responsive avec animations
 st.markdown("""
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes">
 <style>
     /* Variables de couleurs */
     :root {
@@ -420,14 +421,19 @@ st.markdown("""
     }
 
     /* Responsive - Mobile First */
-    @media (max-width: 1024px) {
-        /* Tablettes */
+    @media (max-width: 1200px) {
+        /* Écrans moyens et tablettes */
         .block-container {
             padding: 1.5rem 1rem;
+            max-width: 100%;
         }
 
         .custom-header {
             padding: 1rem;
+        }
+
+        .custom-header h1 {
+            font-size: 1.5rem;
         }
 
         [data-testid="stMetricValue"] {
@@ -438,10 +444,15 @@ st.markdown("""
         .plotly-graph-div {
             margin-bottom: 1rem;
         }
+
+        /* Réduire les gaps entre colonnes */
+        [data-testid="column"] {
+            padding: 0 0.5rem;
+        }
     }
 
     @media (max-width: 768px) {
-        /* Mobile */
+        /* Tablettes et grands mobiles */
         .block-container {
             padding: 0.75rem 0.5rem;
         }
@@ -460,9 +471,10 @@ st.markdown("""
             font-size: 0.75rem;
         }
 
-        /* Cacher l'icône sur très petit écran */
-        .header-icon {
-            display: none !important;
+        /* Réduire la taille de l'icône sur tablette */
+        .hospital-icon {
+            width: 40px !important;
+            height: 40px !important;
         }
 
         /* KPIs en colonne sur mobile */
@@ -472,7 +484,7 @@ st.markdown("""
         }
 
         [data-testid="stMetricValue"] {
-            font-size: 1.3rem;
+            font-size: 1.4rem;
         }
 
         [data-testid="stMetricLabel"] {
@@ -482,12 +494,14 @@ st.markdown("""
         /* Tabs plus compacts */
         .stTabs [data-baseweb="tab-list"] {
             gap: 0.5rem;
-            flex-wrap: wrap;
+            overflow-x: auto;
+            -webkit-overflow-scrolling: touch;
         }
 
         .stTabs [data-baseweb="tab"] {
             padding: 0.5rem 0.75rem;
             font-size: 0.85rem;
+            flex-shrink: 0;
         }
 
         /* Titres de section plus petits */
@@ -496,7 +510,7 @@ st.markdown("""
             margin: 1rem 0 0.75rem 0;
         }
 
-        /* Sidebar plus étroite */
+        /* Sidebar responsive */
         [data-testid="stSidebar"] {
             min-width: 250px !important;
         }
@@ -509,31 +523,58 @@ st.markdown("""
         /* Graphiques responsive */
         .plotly-graph-div {
             margin: 0.5rem 0;
+            min-height: 300px;
         }
 
-        /* Tableaux scrollables */
+        /* Tableaux scrollables horizontalement */
         [data-testid="stDataFrame"] {
             font-size: 0.8rem;
             max-width: 100%;
             overflow-x: auto;
+            -webkit-overflow-scrolling: touch;
+        }
+
+        /* Colonnes empilées sur tablette */
+        [data-testid="column"] {
+            min-width: 100% !important;
+            padding: 0.25rem 0;
         }
 
         /* Réduire animations sur mobile pour performance */
         * {
-            animation-duration: 0.2s !important;
+            animation-duration: 0.3s !important;
         }
 
         /* Boutons pleine largeur */
         .stButton > button {
             font-size: 0.9rem;
             padding: 0.5rem;
+            width: 100%;
+        }
+
+        /* Améliorer les zones de clic */
+        .stSelectbox, .stMultiSelect, .stButton {
+            margin-bottom: 0.75rem;
+        }
+
+        /* Filtres de la carte en colonne */
+        [data-testid="stHorizontalBlock"] {
+            flex-direction: column !important;
+        }
+
+        [data-testid="stHorizontalBlock"] > div {
+            width: 100% !important;
         }
     }
 
     @media (max-width: 480px) {
-        /* Très petits écrans */
+        /* Mobiles compacts */
         .block-container {
             padding: 0.5rem 0.25rem;
+        }
+
+        .custom-header {
+            padding: 0.5rem;
         }
 
         .custom-header h1 {
@@ -545,8 +586,17 @@ st.markdown("""
             line-height: 1.4;
         }
 
+        /* Cacher l'icône sur très petit écran */
+        .header-icon {
+            display: none !important;
+        }
+
+        [data-testid="stMetric"] {
+            padding: 0.5rem;
+        }
+
         [data-testid="stMetricValue"] {
-            font-size: 1.1rem;
+            font-size: 1.2rem;
         }
 
         [data-testid="stMetricLabel"] {
@@ -555,23 +605,84 @@ st.markdown("""
 
         .section-title {
             font-size: 1rem;
+            margin: 0.75rem 0 0.5rem 0;
         }
 
-        /* Colonnes en une seule colonne */
-        [data-testid="column"] {
-            min-width: 100% !important;
-        }
-
-        /* Tabs en mode scroll horizontal */
+        /* Tabs en scroll horizontal */
         .stTabs [data-baseweb="tab-list"] {
             overflow-x: auto;
             flex-wrap: nowrap;
+            gap: 0.25rem;
+            -webkit-overflow-scrolling: touch;
+            scrollbar-width: thin;
+        }
+
+        .stTabs [data-baseweb="tab-list"]::-webkit-scrollbar {
+            height: 4px;
+        }
+
+        .stTabs [data-baseweb="tab-list"]::-webkit-scrollbar-thumb {
+            background: var(--accent-color);
+            border-radius: 2px;
         }
 
         .stTabs [data-baseweb="tab"] {
             font-size: 0.8rem;
             padding: 0.4rem 0.6rem;
             white-space: nowrap;
+        }
+
+        /* Graphiques plus petits mais utilisables */
+        .plotly-graph-div {
+            min-height: 250px;
+            margin: 0.25rem 0;
+        }
+
+        /* Sidebar pleine largeur quand ouverte */
+        [data-testid="stSidebar"] {
+            width: 100% !important;
+            max-width: 100% !important;
+        }
+
+        /* Améliorer lisibilité des tableaux */
+        [data-testid="stDataFrame"] {
+            font-size: 0.75rem;
+        }
+
+        /* Info boxes plus compactes */
+        .stAlert {
+            font-size: 0.8rem;
+            padding: 0.5rem;
+        }
+
+        /* Espacement minimal mais lisible */
+        .stSelectbox, .stMultiSelect {
+            margin-bottom: 0.5rem;
+        }
+
+        /* Tout en pleine largeur */
+        [data-testid="column"] {
+            width: 100% !important;
+            min-width: 100% !important;
+        }
+    }
+
+    @media (max-width: 360px) {
+        /* Très petits mobiles */
+        .custom-header h1 {
+            font-size: 0.9rem;
+        }
+
+        [data-testid="stMetricValue"] {
+            font-size: 1rem;
+        }
+
+        .section-title {
+            font-size: 0.9rem;
+        }
+
+        .plotly-graph-div {
+            min-height: 200px;
         }
     }
 
@@ -784,7 +895,7 @@ if hospital_svg_path.exists():
         svg_content = f.read()
         # Encoder en base64 pour éviter les problèmes d'échappement
         svg_b64 = base64.b64encode(svg_content.encode('utf-8')).decode('utf-8')
-        hospital_svg = f'<img src="data:image/svg+xml;base64,{svg_b64}" style="width: 48px; height: 48px; display: block;" />'
+        hospital_svg = f'<img src="data:image/svg+xml;base64,{svg_b64}" class="hospital-icon" style="width: 48px; height: 48px; display: block;" />'
 else:
     hospital_svg = ""
 
