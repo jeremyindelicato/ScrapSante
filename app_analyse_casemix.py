@@ -832,16 +832,19 @@ with st.sidebar:
         help="Sélectionnez les années à analyser"
     )
 
-    # Filtre établissement
+    # Filtre établissement avec option "Tous les établissements"
     def format_etablissement(finess):
+        if finess == "Tous les établissements":
+            return finess
         nom = finess_mapping.get(finess, 'Inconnu')  # FIX CRITIQUE: Ne JAMAIS filtrer df ici!
         return f"{finess} - {nom}"
 
+    etablissement_options = ['Tous les établissements'] + filter_opts['finess']
     etablissement_selectionne = st.selectbox(
         "Établissement",
-        options=filter_opts['finess'],
+        options=etablissement_options,
         format_func=format_etablissement,
-        help="Choisissez un établissement"
+        help="Choisissez un établissement ou 'Tous' pour voir l'ensemble"
     )
 
     st.markdown("---")
@@ -860,6 +863,14 @@ with st.sidebar:
 
 def filter_data_ultra_fast(finess, annees):
     """Filtrage ultra-rapide avec masque booleen"""
+    # Si "Tous les établissements" est sélectionné, ne pas filtrer par Finess
+    if finess == "Tous les établissements":
+        if annees:
+            mask = df['Annee'].isin(annees)
+            return df[mask].copy()
+        else:
+            return df.copy()
+
     # Filtrage direct par Finess avec masque booleen
     mask = (df['Finess'] == finess)
 
@@ -886,7 +897,13 @@ df_filtered = st.session_state.df_filtered
 # EN-TÊTE
 # ========================================
 
-nom_etab = finess_mapping.get(etablissement_selectionne, 'Inconnu')  # FIX: Ne pas filtrer df ici!
+# Déterminer le nom de l'établissement pour l'en-tête
+if etablissement_selectionne == "Tous les établissements":
+    nom_etab = "Tous les établissements"
+    finess_display = f"{df_filtered['Finess'].nunique()} établissements"
+else:
+    nom_etab = finess_mapping.get(etablissement_selectionne, 'Inconnu')
+    finess_display = f"FINESS: {etablissement_selectionne}"
 
 # Lire et encoder le SVG de l'hôpital
 hospital_svg_path = Path("assets/hospital.svg")
@@ -908,7 +925,7 @@ st.markdown(f"""
         </div>
         <div class="header-content" style="flex: 1; min-width: 250px;">
             <h1>{nom_etab}</h1>
-            <p>FINESS: {etablissement_selectionne} • Période: {', '.join(map(str, annees_selectionnees)) if annees_selectionnees else 'Toutes années'}</p>
+            <p>{finess_display} • Période: {', '.join(map(str, annees_selectionnees)) if annees_selectionnees else 'Toutes années'}</p>
         </div>
     </div>
 </div>
@@ -1210,7 +1227,11 @@ with tab1:
 with tab2:
     st.markdown('<div class="section-title">Sélection Filtrée - Analyse Approfondie</div>', unsafe_allow_html=True)
 
-    st.info("🎯 **Filtrez vos données** : Sélectionnez les critères ci-dessous pour affiner votre analyse. Le graphique se mettra à jour automatiquement.")
+    # Message différent selon si "Tous les établissements" est sélectionné
+    if etablissement_selectionne == "Tous les établissements":
+        st.info("🌍 **Vue d'ensemble multi-établissements** : Vous visualisez actuellement les données de tous les établissements. Utilisez les filtres de la barre latérale pour sélectionner un établissement spécifique, ou affinez votre analyse avec les filtres ci-dessous.")
+    else:
+        st.info("🎯 **Filtrez vos données** : Sélectionnez les critères ci-dessous pour affiner votre analyse. Le graphique se mettra à jour automatiquement.")
 
     # Créer les filtres dynamiques sur 3 colonnes
     col1, col2, col3 = st.columns(3)
