@@ -12,13 +12,8 @@ import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 from pathlib import Path
 import numpy as np
-from dotenv import load_dotenv
-import os
 import json
 import base64
-
-# Charger les variables d'environnement
-load_dotenv()
 
 # Configuration de la page
 st.set_page_config(
@@ -753,53 +748,6 @@ with st.spinner('Chargement des données...'):
     finess_mapping = load_finess_mapping()
 
 # ========================================
-# AUTHENTIFICATION
-# ========================================
-
-# Récupérer le mot de passe depuis les variables d'environnement
-# En local: fichier .env
-# Sur Streamlit Cloud: configurez dans Settings > Secrets
-PASSWORD = os.getenv("DASHBOARD_PASSWORD")
-
-# Vérification que le mot de passe est configuré
-if not PASSWORD:
-    st.error("⚠️ Configuration manquante : DASHBOARD_PASSWORD non défini")
-    st.info("**Configuration requise :**\n\n- **Local :** Créez un fichier `.env` avec `DASHBOARD_PASSWORD=votre_mot_de_passe`\n\n- **Streamlit Cloud :** Ajoutez `DASHBOARD_PASSWORD` dans Settings > Secrets")
-    st.stop()
-
-if 'authenticated' not in st.session_state:
-    st.session_state.authenticated = False
-
-if not st.session_state.authenticated:
-    st.markdown("<div style='margin-top: 60px;'></div>", unsafe_allow_html=True)
-
-    col1, col2, col3 = st.columns([1, 2, 1])
-    with col2:
-        logo_path = Path("assets/logomotdepasse.png")
-        if logo_path.exists():
-            st.image(str(logo_path), width="stretch")
-
-        st.markdown("""
-        <div style="text-align: center; margin: 30px 0;">
-            <h2 style="color: #FFB500; font-size: 24px;">Accès Sécurisé</h2>
-            <p style="color: #666666; font-size: 16px;">Dashboard Casemix GHM</p>
-        </div>
-        """, unsafe_allow_html=True)
-
-        with st.form(key="login_form"):
-            password_input = st.text_input("Mot de passe", type="password", placeholder="Entrez le mot de passe...")
-            submit_button = st.form_submit_button("Se connecter", width="stretch")
-
-            if submit_button:
-                if password_input == PASSWORD:
-                    st.session_state.authenticated = True
-                    st.rerun()
-                else:
-                    st.error("Mot de passe incorrect")
-
-    st.stop()
-
-# ========================================
 # SIDEBAR - FILTRES (AVEC CACHE POUR LES LISTES)
 # ========================================
 
@@ -1076,7 +1024,7 @@ def compute_classification_data(df_filtered, column_name):
 tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
     "Vue d'ensemble",
     "Sélection Filtrée",
-    "🗺️ Carte de France",
+    "Carte de France",
     "Classifications",
     "Évolution temporelle",
     "Export données"
@@ -1376,7 +1324,7 @@ with tab2:
 
 # TAB 3: CARTE DE FRANCE INTERACTIVE
 with tab3:
-    st.markdown('<div class="section-title">🗺️ Répartition Géographique de l\'Activité Hospitalière</div>', unsafe_allow_html=True)
+    st.markdown('<div class="section-title">Répartition Géographique de l\'Activité Hospitalière</div>', unsafe_allow_html=True)
 
     st.info("🌍 **Vue d'ensemble nationale** : Cette carte affiche l'activité de tous les établissements. Utilisez les filtres ci-dessous pour affiner votre analyse.")
 
