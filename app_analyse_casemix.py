@@ -472,37 +472,56 @@ st.markdown("""
             height: 40px !important;
         }
 
-        /* KPIs en colonne sur mobile */
+        /* KPIs en 2 colonnes sur tablette pour meilleure lisibilité */
+        [data-testid="stHorizontalBlock"]:has([data-testid="stMetric"]) {
+            display: grid !important;
+            grid-template-columns: repeat(2, 1fr) !important;
+            gap: 0.5rem !important;
+        }
+
         [data-testid="stMetric"] {
             padding: 0.75rem;
             margin-bottom: 0.5rem;
+            min-height: 80px;
         }
 
         [data-testid="stMetricValue"] {
-            font-size: 1.4rem;
+            font-size: 1.5rem;
         }
 
         [data-testid="stMetricLabel"] {
-            font-size: 0.75rem;
+            font-size: 0.8rem;
+            font-weight: 600;
         }
 
-        /* Tabs plus compacts */
+        /* Tabs plus compacts avec indicateur de scroll */
         .stTabs [data-baseweb="tab-list"] {
             gap: 0.5rem;
             overflow-x: auto;
             -webkit-overflow-scrolling: touch;
+            padding-bottom: 0.5rem;
+        }
+
+        .stTabs [data-baseweb="tab-list"]::-webkit-scrollbar {
+            height: 6px;
+        }
+
+        .stTabs [data-baseweb="tab-list"]::-webkit-scrollbar-thumb {
+            background: var(--accent-color);
+            border-radius: 3px;
         }
 
         .stTabs [data-baseweb="tab"] {
-            padding: 0.5rem 0.75rem;
-            font-size: 0.85rem;
+            padding: 0.6rem 1rem;
+            font-size: 0.9rem;
             flex-shrink: 0;
+            white-space: nowrap;
         }
 
         /* Titres de section plus petits */
         .section-title {
             font-size: 1.1rem;
-            margin: 1rem 0 0.75rem 0;
+            margin: 1.5rem 0 1rem 0;
         }
 
         /* Sidebar responsive */
@@ -510,29 +529,47 @@ st.markdown("""
             min-width: 250px !important;
         }
 
-        /* Selectbox et filtres */
+        /* Selectbox et filtres plus grands pour mobile */
         .stSelectbox label, .stMultiSelect label {
-            font-size: 0.85rem;
+            font-size: 0.9rem;
+            font-weight: 600;
         }
 
-        /* Graphiques responsive */
+        .stSelectbox > div > div, .stMultiSelect > div > div {
+            font-size: 0.95rem;
+            min-height: 44px;
+        }
+
+        /* Graphiques responsive avec hauteur adaptée */
         .plotly-graph-div {
-            margin: 0.5rem 0;
-            min-height: 300px;
+            margin: 1rem 0;
+            min-height: 350px !important;
+            border-radius: 8px;
         }
 
-        /* Tableaux scrollables horizontalement */
+        /* Tableaux scrollables avec indicateur visible */
         [data-testid="stDataFrame"] {
-            font-size: 0.8rem;
+            font-size: 0.85rem;
             max-width: 100%;
             overflow-x: auto;
             -webkit-overflow-scrolling: touch;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+
+        [data-testid="stDataFrame"]::-webkit-scrollbar {
+            height: 8px;
+        }
+
+        [data-testid="stDataFrame"]::-webkit-scrollbar-thumb {
+            background: var(--accent-color);
+            border-radius: 4px;
         }
 
         /* Colonnes empilées sur tablette */
         [data-testid="column"] {
             min-width: 100% !important;
-            padding: 0.25rem 0;
+            padding: 0.5rem 0;
         }
 
         /* Réduire animations sur mobile pour performance */
@@ -540,45 +577,50 @@ st.markdown("""
             animation-duration: 0.3s !important;
         }
 
-        /* Boutons pleine largeur */
+        /* Boutons pleine largeur plus grands */
         .stButton > button {
-            font-size: 0.9rem;
-            padding: 0.5rem;
+            font-size: 1rem;
+            padding: 0.75rem;
             width: 100%;
+            min-height: 44px;
         }
 
         /* Améliorer les zones de clic */
         .stSelectbox, .stMultiSelect, .stButton {
-            margin-bottom: 0.75rem;
+            margin-bottom: 1rem;
         }
 
         /* Filtres de la carte en colonne */
-        [data-testid="stHorizontalBlock"] {
-            flex-direction: column !important;
-        }
-
         [data-testid="stHorizontalBlock"] > div {
             width: 100% !important;
+            margin-bottom: 0.75rem;
+        }
+
+        /* Info boxes plus lisibles */
+        .stAlert {
+            font-size: 0.9rem;
+            padding: 1rem;
+            line-height: 1.5;
         }
     }
 
     @media (max-width: 480px) {
         /* Mobiles compacts */
         .block-container {
-            padding: 0.5rem 0.25rem;
+            padding: 0.75rem 0.5rem;
         }
 
         .custom-header {
-            padding: 0.5rem;
+            padding: 0.75rem;
         }
 
         .custom-header h1 {
-            font-size: 1rem;
+            font-size: 1.1rem;
         }
 
         .custom-header p {
-            font-size: 0.7rem;
-            line-height: 1.4;
+            font-size: 0.75rem;
+            line-height: 1.5;
         }
 
         /* Cacher l'icône sur très petit écran */
@@ -586,51 +628,73 @@ st.markdown("""
             display: none !important;
         }
 
+        /* KPIs en 1 colonne sur mobile pour meilleure lisibilité */
+        [data-testid="stHorizontalBlock"]:has([data-testid="stMetric"]) {
+            display: flex !important;
+            flex-direction: column !important;
+            gap: 0.75rem !important;
+        }
+
         [data-testid="stMetric"] {
-            padding: 0.5rem;
+            padding: 1rem;
+            min-height: 70px;
+            border-radius: 8px;
+            background: linear-gradient(135deg, #FFFFFF 0%, #F8F9FA 100%);
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
         }
 
         [data-testid="stMetricValue"] {
-            font-size: 1.2rem;
+            font-size: 1.6rem;
+            font-weight: 700;
         }
 
         [data-testid="stMetricLabel"] {
-            font-size: 0.7rem;
+            font-size: 0.85rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
         }
 
         .section-title {
-            font-size: 1rem;
-            margin: 0.75rem 0 0.5rem 0;
+            font-size: 1.1rem;
+            margin: 1.25rem 0 0.75rem 0;
         }
 
-        /* Tabs en scroll horizontal */
+        /* Tabs en scroll horizontal avec indicateur visible */
         .stTabs [data-baseweb="tab-list"] {
             overflow-x: auto;
             flex-wrap: nowrap;
-            gap: 0.25rem;
+            gap: 0.5rem;
             -webkit-overflow-scrolling: touch;
             scrollbar-width: thin;
+            padding-bottom: 0.75rem;
         }
 
         .stTabs [data-baseweb="tab-list"]::-webkit-scrollbar {
-            height: 4px;
+            height: 6px;
+        }
+
+        .stTabs [data-baseweb="tab-list"]::-webkit-scrollbar-track {
+            background: #f1f1f1;
+            border-radius: 3px;
         }
 
         .stTabs [data-baseweb="tab-list"]::-webkit-scrollbar-thumb {
             background: var(--accent-color);
-            border-radius: 2px;
+            border-radius: 3px;
         }
 
         .stTabs [data-baseweb="tab"] {
-            font-size: 0.8rem;
-            padding: 0.4rem 0.6rem;
+            font-size: 0.85rem;
+            padding: 0.6rem 1rem;
             white-space: nowrap;
         }
 
-        /* Graphiques plus petits mais utilisables */
+        /* Graphiques optimisés pour mobile */
         .plotly-graph-div {
-            min-height: 250px;
-            margin: 0.25rem 0;
+            min-height: 300px !important;
+            margin: 1rem 0;
+            border-radius: 8px;
         }
 
         /* Sidebar pleine largeur quand ouverte */
@@ -639,26 +703,59 @@ st.markdown("""
             max-width: 100% !important;
         }
 
-        /* Améliorer lisibilité des tableaux */
+        /* Tableaux avec scroll visible et lisible */
         [data-testid="stDataFrame"] {
-            font-size: 0.75rem;
-        }
-
-        /* Info boxes plus compactes */
-        .stAlert {
             font-size: 0.8rem;
-            padding: 0.5rem;
+            border-radius: 8px;
         }
 
-        /* Espacement minimal mais lisible */
+        [data-testid="stDataFrame"]::-webkit-scrollbar {
+            height: 10px;
+        }
+
+        [data-testid="stDataFrame"]::-webkit-scrollbar-track {
+            background: #f1f1f1;
+            border-radius: 5px;
+        }
+
+        [data-testid="stDataFrame"]::-webkit-scrollbar-thumb {
+            background: var(--accent-color);
+            border-radius: 5px;
+        }
+
+        /* Info boxes lisibles */
+        .stAlert {
+            font-size: 0.85rem;
+            padding: 0.85rem;
+            line-height: 1.6;
+        }
+
+        /* Filtres et selectbox avec zones de clic optimales */
         .stSelectbox, .stMultiSelect {
-            margin-bottom: 0.5rem;
+            margin-bottom: 0.75rem;
+        }
+
+        .stSelectbox > div > div, .stMultiSelect > div > div {
+            min-height: 48px;
+            font-size: 1rem;
+        }
+
+        /* Boutons optimisés pour tactile */
+        .stButton > button {
+            min-height: 48px;
+            font-size: 1rem;
         }
 
         /* Tout en pleine largeur */
         [data-testid="column"] {
             width: 100% !important;
             min-width: 100% !important;
+            padding: 0.5rem 0;
+        }
+
+        /* Espacement entre les éléments */
+        .element-container {
+            margin-bottom: 0.75rem;
         }
     }
 
