@@ -1118,9 +1118,10 @@ def compute_classification_data(df_filtered, column_name):
 # ONGLETS
 # ========================================
 
-tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
+tab1, tab2, tab3, tab4, tab5, tab6, tab7 = st.tabs([
     "Vue d'ensemble",
     "Sélection Filtrée",
+    "Analyse Financière",
     "Carte de France",
     "Classifications",
     "Évolution temporelle",
@@ -1419,8 +1420,284 @@ with tab2:
     else:
         st.warning("⚠️ Aucune donnée ne correspond à cette sélection de filtres.")
 
-# TAB 3: CARTE DE FRANCE INTERACTIVE
+# TAB 3: ANALYSE FINANCIÈRE
 with tab3:
+    st.markdown('<div class="section-title">💰 Analyse Financière et Valorisation</div>', unsafe_allow_html=True)
+
+    # Vérifier si les colonnes de tarifs et statut existent
+    if 'Tarif_Public' not in df_filtered.columns or 'CA_Public_Estime' not in df_filtered.columns:
+        st.error("⚠️ Les données tarifaires ne sont pas disponibles. Veuillez exécuter le script d'intégration des tarifs.")
+        st.info("Exécutez `python integrate_tarifs.py` pour ajouter les tarifs GHS au fichier de données.")
+        st.stop()
+
+    if 'Statut_Etablissement' not in df_filtered.columns:
+        st.error("⚠️ La colonne Statut_Etablissement n'est pas disponible. Veuillez exécuter le script add_statut_etablissement.py")
+        st.info("Exécutez `python add_statut_etablissement.py` pour ajouter le statut Public/Privé aux établissements.")
+        st.stop()
+
+    # Déterminer le statut de l'établissement sélectionné
+    if etablissement_selectionne == "Tous les établissements":
+        statut_etablissement = "Mixte"
+        st.info("🌍 **Vue d'ensemble multi-établissements** : Les analyses sont séparées par statut (Public / Privé).")
+    else:
+        # Récupérer le statut de l'établissement sélectionné
+        statut_etablissement = df_filtered['Statut_Etablissement'].iloc[0] if len(df_filtered) > 0 else "Inconnu"
+
+        if statut_etablissement == "Public":
+            st.info(f"🏥 **Établissement PUBLIC** : {etablissement_selectionne} - Valorisation basée sur les tarifs GHS Public")
+        elif statut_etablissement == "Privé":
+            st.info(f"🏥 **Établissement PRIVÉ** : {etablissement_selectionne} - Valorisation basée sur les tarifs GHS Privé")
+        else:
+            st.warning(f"⚠️ Statut inconnu pour {etablissement_selectionne}")
+
+    # ========== SECTION ÉTABLISSEMENT PUBLIC ==========
+    if statut_etablissement in ["Public", "Mixte"]:
+        st.markdown('<div class="section-title">🏥 Analyse Établissement Public</div>', unsafe_allow_html=True)
+
+        # Filtrer uniquement les données publiques
+        if statut_etablissement == "Mixte":
+            df_public = df_filtered[df_filtered['Statut_Etablissement'] == 'Public'].copy()
+        else:
+            df_public = df_filtered.copy()
+
+        if len(df_public) == 0:
+            st.info("Aucune donnée disponible pour les établissements publics.")
+        else:
+            # KPIs Publics
+            ca_public_total = df_public['CA_Public_Estime'].sum()
+            tarif_moyen_public = df_public['Tarif_Public'].mean()
+            effectif_total_public = df_public['Effectif'].sum()
+            nb_ghm_public = df_public['Code_GHM'].nunique()
+
+            col1, col2, col3, col4 = st.columns(4)
+            with col1:
+                st.metric("CA Public Total", f"{ca_public_total/1e6:.1f} M€")
+            with col2:
+                st.metric("Tarif Moyen Public", f"{tarif_moyen_public:,.0f} €")
+            with col3:
+                st.metric("Effectif Total", f"{int(effectif_total_public):,}".replace(',', ' '))
+            with col4:
+                st.metric("Nombre de GHM", f"{nb_ghm_public}")
+
+            st.markdown("---")
+
+            # Top 15 GHM par CA Public
+            col1, col2 = st.columns(2)
+
+            with col1:
+                st.markdown("### 💰 Top 15 GHM par CA Public")
+
+                top_ca_public = df_public.groupby(['Code_GHM', 'Libelle']).agg({
+                    'CA_Public_Estime': 'sum',
+                    'Effectif': 'sum',
+                    'Tarif_Public': 'mean'
+                }).reset_index().sort_values('CA_Public_Estime', ascending=False).head(15)
+
+                fig = px.bar(
+                    top_ca_public,
+                    y='Libelle',
+                    x='CA_Public_Estime',
+                    orientation='h',
+                    title="",
+                    color='CA_Public_Estime',
+                    color_continuous_scale=[[0, COLORS['secondary']], [1, COLORS['primary']]],
+                    hover_data={'Effectif': ':,', 'Tarif_Public': ':,.0f'},
+                    labels={'CA_Public_Estime': 'CA (€)', 'Effectif': 'Effectif', 'Tarif_Public': 'Tarif (€)'}
+                )
+                fig.update_traces(texttemplate='%{x:,.0f}€', textposition='outside')
+                fig.update_layout(
+                    height=600,
+                    showlegend=False,
+                    yaxis=dict(title=''),
+                    xaxis=dict(title='Chiffre d\'Affaires (€)'),
+                    margin=dict(l=20, r=20, t=20, b=20)
+                )
+                st.plotly_chart(fig, use_container_width=True)
+
+            with col2:
+                st.markdown("### 📊 Volume vs Valorisation (Public)")
+
+                # Agréger par GHM
+                ghm_public = df_public.groupby(['Code_GHM', 'Libelle']).agg({
+                    'Effectif': 'sum',
+                    'CA_Public_Estime': 'sum',
+                    'Tarif_Public': 'mean',
+                    'DMS': 'mean'
+                }).reset_index().nlargest(30, 'CA_Public_Estime')
+
+                fig = px.scatter(
+                    ghm_public,
+                    x='Effectif',
+                    y='CA_Public_Estime',
+                    size='Tarif_Public',
+                    hover_name='Libelle',
+                    hover_data={'Effectif': ':,', 'CA_Public_Estime': ':,.0f', 'Tarif_Public': ':,.0f', 'DMS': ':.1f'},
+                    title="",
+                    color='Tarif_Public',
+                    color_continuous_scale=[[0, COLORS['secondary']], [1, COLORS['primary']]],
+                    labels={
+                        'Effectif': 'Volume',
+                        'CA_Public_Estime': 'CA Public (€)',
+                        'Tarif_Public': 'Tarif (€)',
+                        'DMS': 'DMS (j)'
+                    }
+                )
+                fig.update_layout(
+                    height=600,
+                    margin=dict(l=20, r=20, t=20, b=20)
+                )
+                st.plotly_chart(fig, use_container_width=True)
+
+            # Tableau récapitulatif Public
+            st.markdown("### 📋 Tableau Récapitulatif GHM Public (Top 20 par CA)")
+
+            recap_public = df_public.groupby(['Code_GHM', 'Libelle']).agg({
+                'Effectif': 'sum',
+                'CA_Public_Estime': 'sum',
+                'Tarif_Public': 'mean',
+                'DMS': 'mean'
+            }).reset_index().sort_values('CA_Public_Estime', ascending=False).head(20)
+
+            recap_public['% CA'] = (recap_public['CA_Public_Estime'] / ca_public_total * 100).round(1)
+
+            # Formater
+            recap_public['Effectif'] = recap_public['Effectif'].apply(lambda x: f"{int(x):,}".replace(',', ' '))
+            recap_public['CA Public'] = recap_public['CA_Public_Estime'].apply(lambda x: f"{x:,.0f} €".replace(',', ' '))
+            recap_public['Tarif'] = recap_public['Tarif_Public'].apply(lambda x: f"{x:,.0f} €".replace(',', ' '))
+            recap_public['DMS'] = recap_public['DMS'].apply(lambda x: f"{x:.1f}j")
+            recap_public['% CA'] = recap_public['% CA'].apply(lambda x: f"{x:.1f}%")
+
+            recap_public = recap_public[['Code_GHM', 'Libelle', 'Effectif', 'CA Public', 'Tarif', 'DMS', '% CA']]
+            recap_public.columns = ['Code GHM', 'Libellé', 'Effectif', 'CA Public', 'Tarif Public', 'DMS', '% CA']
+
+            st.dataframe(recap_public, use_container_width=True, hide_index=True, height=400)
+
+            st.markdown("---")
+
+    # ========== SECTION ÉTABLISSEMENT PRIVÉ ==========
+    if statut_etablissement in ["Privé", "Mixte"]:
+        st.markdown('<div class="section-title">🏥 Analyse Établissement Privé</div>', unsafe_allow_html=True)
+
+        # Filtrer uniquement les données privées
+        if statut_etablissement == "Mixte":
+            df_prive = df_filtered[df_filtered['Statut_Etablissement'] == 'Privé'].copy()
+        else:
+            df_prive = df_filtered.copy()
+
+        if len(df_prive) == 0:
+            st.info("Aucune donnée disponible pour les établissements privés.")
+        else:
+            # KPIs Privés
+            ca_prive_total = df_prive['CA_Prive_Estime'].sum()
+            tarif_moyen_prive = df_prive['Tarif_Prive'].mean()
+            effectif_total_prive = df_prive['Effectif'].sum()
+            nb_ghm_prive = df_prive['Code_GHM'].nunique()
+
+            col1, col2, col3, col4 = st.columns(4)
+            with col1:
+                st.metric("CA Privé Total", f"{ca_prive_total/1e6:.1f} M€")
+            with col2:
+                st.metric("Tarif Moyen Privé", f"{tarif_moyen_prive:,.0f} €")
+            with col3:
+                st.metric("Effectif Total", f"{int(effectif_total_prive):,}".replace(',', ' '))
+            with col4:
+                st.metric("Nombre de GHM", f"{nb_ghm_prive}")
+
+            st.markdown("---")
+
+            # Top 15 GHM par CA Privé
+            col1, col2 = st.columns(2)
+
+            with col1:
+                st.markdown("### 💳 Top 15 GHM par CA Privé")
+
+                top_ca_prive = df_prive.groupby(['Code_GHM', 'Libelle']).agg({
+                    'CA_Prive_Estime': 'sum',
+                    'Effectif': 'sum',
+                    'Tarif_Prive': 'mean'
+                }).reset_index().sort_values('CA_Prive_Estime', ascending=False).head(15)
+
+                fig = px.bar(
+                    top_ca_prive,
+                    y='Libelle',
+                    x='CA_Prive_Estime',
+                    orientation='h',
+                    title="",
+                    color='CA_Prive_Estime',
+                    color_continuous_scale=[[0, COLORS['quaternary']], [1, COLORS['tertiary']]],
+                    hover_data={'Effectif': ':,', 'Tarif_Prive': ':,.0f'},
+                    labels={'CA_Prive_Estime': 'CA (€)', 'Effectif': 'Effectif', 'Tarif_Prive': 'Tarif (€)'}
+                )
+                fig.update_traces(texttemplate='%{x:,.0f}€', textposition='outside')
+                fig.update_layout(
+                    height=600,
+                    showlegend=False,
+                    yaxis=dict(title=''),
+                    xaxis=dict(title='Chiffre d\'Affaires (€)'),
+                    margin=dict(l=20, r=20, t=20, b=20)
+                )
+                st.plotly_chart(fig, use_container_width=True)
+
+            with col2:
+                st.markdown("### 📊 Volume vs Valorisation (Privé)")
+
+                # Agréger par GHM
+                ghm_prive = df_prive.groupby(['Code_GHM', 'Libelle']).agg({
+                    'Effectif': 'sum',
+                    'CA_Prive_Estime': 'sum',
+                    'Tarif_Prive': 'mean',
+                    'DMS': 'mean'
+                }).reset_index().nlargest(30, 'CA_Prive_Estime')
+
+                fig = px.scatter(
+                    ghm_prive,
+                    x='Effectif',
+                    y='CA_Prive_Estime',
+                    size='Tarif_Prive',
+                    hover_name='Libelle',
+                    hover_data={'Effectif': ':,', 'CA_Prive_Estime': ':,.0f', 'Tarif_Prive': ':,.0f', 'DMS': ':.1f'},
+                    title="",
+                    color='Tarif_Prive',
+                    color_continuous_scale=[[0, COLORS['quaternary']], [1, COLORS['tertiary']]],
+                    labels={
+                        'Effectif': 'Volume',
+                        'CA_Prive_Estime': 'CA Privé (€)',
+                        'Tarif_Prive': 'Tarif (€)',
+                        'DMS': 'DMS (j)'
+                    }
+                )
+                fig.update_layout(
+                    height=600,
+                    margin=dict(l=20, r=20, t=20, b=20)
+                )
+                st.plotly_chart(fig, use_container_width=True)
+
+            # Tableau récapitulatif Privé
+            st.markdown("### 📋 Tableau Récapitulatif GHM Privé (Top 20 par CA)")
+
+            recap_prive = df_prive.groupby(['Code_GHM', 'Libelle']).agg({
+                'Effectif': 'sum',
+                'CA_Prive_Estime': 'sum',
+                'Tarif_Prive': 'mean',
+                'DMS': 'mean'
+            }).reset_index().sort_values('CA_Prive_Estime', ascending=False).head(20)
+
+            recap_prive['% CA'] = (recap_prive['CA_Prive_Estime'] / ca_prive_total * 100).round(1)
+
+            # Formater
+            recap_prive['Effectif'] = recap_prive['Effectif'].apply(lambda x: f"{int(x):,}".replace(',', ' '))
+            recap_prive['CA Privé'] = recap_prive['CA_Prive_Estime'].apply(lambda x: f"{x:,.0f} €".replace(',', ' '))
+            recap_prive['Tarif'] = recap_prive['Tarif_Prive'].apply(lambda x: f"{x:,.0f} €".replace(',', ' '))
+            recap_prive['DMS'] = recap_prive['DMS'].apply(lambda x: f"{x:.1f}j")
+            recap_prive['% CA'] = recap_prive['% CA'].apply(lambda x: f"{x:.1f}%")
+
+            recap_prive = recap_prive[['Code_GHM', 'Libelle', 'Effectif', 'CA Privé', 'Tarif', 'DMS', '% CA']]
+            recap_prive.columns = ['Code GHM', 'Libellé', 'Effectif', 'CA Privé', 'Tarif Privé', 'DMS', '% CA']
+
+            st.dataframe(recap_prive, use_container_width=True, hide_index=True, height=400)
+
+# TAB 4: CARTE DE FRANCE INTERACTIVE
+with tab4:
     st.markdown('<div class="section-title">Répartition Géographique de l\'Activité Hospitalière</div>', unsafe_allow_html=True)
 
     st.info("🌍 **Vue d'ensemble nationale** : Cette carte affiche l'activité de tous les établissements. Utilisez les filtres ci-dessous pour affiner votre analyse.")
@@ -1594,8 +1871,8 @@ with tab3:
         else:
             st.error("Les colonnes 'Departement_Number' et 'Nom_Departement' sont manquantes dans les données.")
 
-# TAB 4: CLASSIFICATIONS
-with tab4:
+# TAB 5: CLASSIFICATIONS
+with tab5:
     st.markdown('<div class="section-title">Analyses par Classification</div>', unsafe_allow_html=True)
 
     col1, col2 = st.columns(2)
@@ -1696,8 +1973,8 @@ with tab4:
         )
         st.plotly_chart(fig, width="stretch")
 
-# TAB 5: ÉVOLUTION TEMPORELLE
-with tab5:
+# TAB 6: ÉVOLUTION TEMPORELLE
+with tab6:
     st.markdown('<div class="section-title">Évolution Temporelle</div>', unsafe_allow_html=True)
 
     if len(annees_selectionnees) > 1:
@@ -1880,8 +2157,8 @@ with tab5:
     else:
         st.info("Sélectionnez plusieurs années pour voir l'évolution temporelle")
 
-# TAB 6: EXPORT DONNÉES
-with tab6:
+# TAB 7: EXPORT DONNÉES
+with tab7:
     st.markdown('<div class="section-title">Export des Données</div>', unsafe_allow_html=True)
 
     # Options d'affichage

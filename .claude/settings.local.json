@@ -28,7 +28,10 @@
       "Bash(git pull:*)",
       "Bash(git stash:*)",
       "Bash(cat:*)",
-      "Bash(git checkout:*)"
+      "Bash(git checkout:*)",
+      "Bash(iconv:*)",
+      "Bash(findstr:*)",
+      "Bash(copy:*)"
     ],
     "deny": [],
     "ask": []
