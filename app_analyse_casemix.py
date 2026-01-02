@@ -14,6 +14,7 @@ from pathlib import Path
 import numpy as np
 import json
 import base64
+import gc  # Garbage collector pour libérer mémoire
 
 # Configuration de la page
 st.set_page_config(
@@ -918,14 +919,28 @@ with st.sidebar:
 # ========================================
 
 def filter_data_ultra_fast(finess, annees):
-    """Filtrage ultra-rapide avec masque booleen"""
+    """Filtrage ultra-rapide avec masque booleen - OPTIMISÉ MÉMOIRE"""
     # Si "Tous les établissements" est sélectionné, ne pas filtrer par Finess
     if finess == "Tous les établissements":
-        if annees:
-            mask = df['Annee'].isin(annees)
-            return df[mask].copy()
+        # PROTECTION: Bloquer si trop de données sans filtre année
+        if not annees:
+            # Retourner seulement l'année la plus récente par défaut pour éviter crash
+            annee_max = df['Annee'].max()
+            st.warning(f"⚠️ 'Tous les établissements' sans filtre année charge trop de données. Affichage de {annee_max} uniquement.")
+            mask = df['Annee'] == annee_max
+            return df[mask]
         else:
-            return df.copy()
+            mask = df['Annee'].isin(annees)
+            # Si toujours trop de lignes, limiter
+            nb_lignes_estimees = mask.sum()
+            if nb_lignes_estimees > 1000000:
+                st.error(f"""
+                🚫 **Volume trop important** : {nb_lignes_estimees:,} lignes
+
+                Pour éviter un crash, veuillez sélectionner **une seule année** ou un établissement spécifique.
+                """)
+                st.stop()
+            return df[mask]
 
     # Filtrage direct par Finess avec masque booleen
     mask = (df['Finess'] == finess)
@@ -934,8 +949,8 @@ def filter_data_ultra_fast(finess, annees):
     if annees:
         mask &= df['Annee'].isin(annees)
 
-    # Un seul filtrage à la fin - beaucoup plus rapide
-    return df[mask].copy()
+    # Un seul filtrage à la fin - PAS de .copy() pour économiser mémoire
+    return df[mask]
 
 # Utilisation de session_state pour garder le dernier filtrage en memoire
 # Sécurité: s'assurer que les variables sont bien définies
@@ -946,11 +961,19 @@ cache_key = f"{etablissement_selectionne}_{tuple(annees_selectionnees)}"
 
 if 'last_cache_key' not in st.session_state or st.session_state.last_cache_key != cache_key:
     try:
+        # Libérer la mémoire de l'ancien filtre avant de créer le nouveau
+        if 'df_filtered' in st.session_state:
+            del st.session_state.df_filtered
+            gc.collect()  # Force garbage collection
+
         st.session_state.df_filtered = filter_data_ultra_fast(
             etablissement_selectionne,
             tuple(annees_selectionnees)
         )
         st.session_state.last_cache_key = cache_key
+
+        # Libérer mémoire après filtrage
+        gc.collect()
     except Exception as e:
         st.error(f"Erreur lors du filtrage des données: {str(e)}")
         st.exception(e)
