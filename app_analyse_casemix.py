@@ -912,16 +912,6 @@ with st.sidebar:
 
     st.markdown("---")
 
-    # Filtre recherche textuelle GHM
-    st.markdown("### 🔍 Recherche")
-    recherche_ghm = st.text_input(
-        "Rechercher un GHM ou libellé",
-        placeholder="Ex: Césarienne, 14C02...",
-        help="Recherche dans le code GHM et le libellé"
-    )
-
-    st.markdown("---")
-
     # Statistiques
     st.info(f"**Données chargées**\n\n{len(df):,} lignes\n\n{df['Finess'].nunique()} établissements")
 
@@ -996,22 +986,6 @@ if 'last_cache_key' not in st.session_state or st.session_state.last_cache_key !
         st.stop()
 
 df_filtered = st.session_state.df_filtered
-
-# ========================================
-# FILTRE RECHERCHE TEXTUELLE GHM
-# ========================================
-if recherche_ghm and recherche_ghm.strip():
-    recherche = recherche_ghm.strip().upper()
-    mask = (
-        df_filtered['Code_GHM'].astype(str).str.upper().str.contains(recherche, na=False) |
-        df_filtered['Libelle'].astype(str).str.upper().str.contains(recherche, na=False)
-    )
-    df_filtered = df_filtered[mask]
-
-    if len(df_filtered) == 0:
-        st.warning(f"🔍 Aucun résultat pour '{recherche_ghm}'")
-    else:
-        st.success(f"🔍 {len(df_filtered):,} résultat(s) pour '{recherche_ghm}'")
 
 # ========================================
 # VÉRIFICATION DE LA TAILLE DES DONNÉES
