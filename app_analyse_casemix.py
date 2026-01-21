@@ -819,9 +819,15 @@ def load_data():
         st.info("Git LFS n'a pas telecharge le fichier. Verifiez packages.txt et la configuration LFS.")
         st.stop()
 
+    # Fonction de chargement avec cache pour performance optimale
+    @st.cache_data(ttl=3600, show_spinner="🔄 Chargement des données...")
+    def load_data_cached(file_path):
+        """Charge le parquet avec cache de 1h pour éviter rechargement"""
+        return pd.read_parquet(file_path)
+
     # Lecture du fichier Parquet (beaucoup plus rapide que CSV!)
     try:
-        df = pd.read_parquet(data_file)
+        df = load_data_cached(data_file)
         # Pas d'index - le filtrage direct est plus rapide pour des MultiIndex non-unique
     except Exception as e:
         st.error(f"Erreur lors de la lecture du Parquet : {str(e)}")
@@ -906,6 +912,16 @@ with st.sidebar:
 
     st.markdown("---")
 
+    # Filtre recherche textuelle GHM
+    st.markdown("### 🔍 Recherche")
+    recherche_ghm = st.text_input(
+        "Rechercher un GHM ou libellé",
+        placeholder="Ex: Césarienne, 14C02...",
+        help="Recherche dans le code GHM et le libellé"
+    )
+
+    st.markdown("---")
+
     # Statistiques
     st.info(f"**Données chargées**\n\n{len(df):,} lignes\n\n{df['Finess'].nunique()} établissements")
 
@@ -980,6 +996,22 @@ if 'last_cache_key' not in st.session_state or st.session_state.last_cache_key !
         st.stop()
 
 df_filtered = st.session_state.df_filtered
+
+# ========================================
+# FILTRE RECHERCHE TEXTUELLE GHM
+# ========================================
+if recherche_ghm and recherche_ghm.strip():
+    recherche = recherche_ghm.strip().upper()
+    mask = (
+        df_filtered['Code_GHM'].astype(str).str.upper().str.contains(recherche, na=False) |
+        df_filtered['Libelle'].astype(str).str.upper().str.contains(recherche, na=False)
+    )
+    df_filtered = df_filtered[mask]
+
+    if len(df_filtered) == 0:
+        st.warning(f"🔍 Aucun résultat pour '{recherche_ghm}'")
+    else:
+        st.success(f"🔍 {len(df_filtered):,} résultat(s) pour '{recherche_ghm}'")
 
 # ========================================
 # VÉRIFICATION DE LA TAILLE DES DONNÉES
@@ -1136,6 +1168,25 @@ def compute_classification_data(df_filtered, column_name):
             return pd.DataFrame()
         return df_filtered[df_filtered[column_name] != 'Non renseigné'].groupby(column_name)['Effectif'].sum().reset_index().sort_values('Effectif', ascending=False).head(10)
     return compute_cached(f"class_{column_name}", calc)
+
+# ========================================
+# HELPER POUR HOVER DATA AMÉLIORÉ
+# ========================================
+
+def get_enhanced_hover_data(include_ca=False):
+    """Retourne un dict de hover_data amélioré pour Plotly"""
+    hover = {
+        'Effectif': ':,',
+        'DMS': ':.1f jours',
+        'Age_Moyen': ':.0f ans',
+        'Taux_Deces': ':.2f%'
+    }
+    if include_ca:
+        hover['CA_Public_Estime'] = ':,.0f €'
+        hover['CA_Prive_Estime'] = ':,.0f €'
+        hover['Tarif_Public'] = ':,.0f €'
+        hover['Tarif_Prive'] = ':,.0f €'
+    return hover
 
 # ========================================
 # ONGLETS
@@ -2260,9 +2311,56 @@ with tab7:
         )
 
     with col2:
-        st.metric("Lignes exportées", f"{len(df_export_display):,}")
+        # Export Excel avec formatage
+        from io import BytesIO
+
+        output = BytesIO()
+        with pd.ExcelWriter(output, engine='openpyxl') as writer:
+            # Écrire les données
+            df_export_display.to_excel(writer, sheet_name='Données Casemix', index=False)
+
+            # Obtenir le workbook et la feuille
+            workbook = writer.book
+            worksheet = writer.sheets['Données Casemix']
+
+            # Formatage de l'en-tête
+            from openpyxl.styles import Font, PatternFill, Alignment
+            header_fill = PatternFill(start_color='823B8A', end_color='823B8A', fill_type='solid')
+            header_font = Font(bold=True, color='FFFFFF', size=11)
+
+            for cell in worksheet[1]:
+                cell.fill = header_fill
+                cell.font = header_font
+                cell.alignment = Alignment(horizontal='center', vertical='center')
+
+            # Ajuster largeur colonnes
+            for column in worksheet.columns:
+                max_length = 0
+                column_letter = column[0].column_letter
+                for cell in column:
+                    try:
+                        if len(str(cell.value)) > max_length:
+                            max_length = len(str(cell.value))
+                    except:
+                        pass
+                adjusted_width = min(max_length + 2, 50)
+                worksheet.column_dimensions[column_letter].width = adjusted_width
+
+            # Figer la première ligne
+            worksheet.freeze_panes = 'A2'
+
+        excel_data = output.getvalue()
+
+        st.download_button(
+            label="📥 Télécharger Excel",
+            data=excel_data,
+            file_name=f"casemix_{etablissement_selectionne}_{pd.Timestamp.now().strftime('%Y%m%d')}.xlsx",
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            use_container_width=True
+        )
 
     with col3:
+        st.metric("Lignes exportées", f"{len(df_export_display):,}")
         st.info(f"Total disponible: {len(df_filtered):,} lignes")
 
 # ========================================
