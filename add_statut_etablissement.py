@@ -1,8 +1,13 @@
 """
-Script pour ajouter la colonne Statut_Etablissement (Public/Privé) au fichier casemix
-Utilise:
-1. Correspondance directe FINESS ET = FINESS EJ depuis statutjuridique-finessET.csv (45%)
-2. Heuristique sur le nom d'établissement pour le reste (55%)
+Script pour ajouter le statut Public/Privé aux établissements du casemix.
+
+Méthode fiable : utilise le fichier FINESS etalab (ET) pour obtenir le FINESS EJ,
+puis le fichier statutjuridique (EJ) pour obtenir le code statut juridique.
+
+Classification :
+  01-52 : Public (État, Commune, Département, EPH, CCAS...)
+  60-66 : Privé Non Lucratif (Association Loi 1901, Fondation, Congrégation...)
+  70-95 : Privé Commercial (SA, SARL, SAS, Personne Physique/Libéral...)
 """
 
 import pandas as pd
@@ -10,121 +15,152 @@ import sys
 
 sys.stdout.reconfigure(encoding='utf-8')
 
-print("=== Ajout du Statut Établissement (Public/Privé) ===\n")
+print("=== Ajout du Statut Établissement (Public/Privé) - V2 FIABLE ===\n")
 
 # 1. Charger le fichier casemix
-print("1️⃣ Chargement du fichier casemix...")
+print("1. Chargement du fichier casemix...")
 df_casemix = pd.read_parquet('data_casemix_2022_2024.parquet')
-print(f"   ✓ {len(df_casemix):,} lignes chargées")
-print(f"   ✓ {df_casemix['Finess'].nunique():,} établissements uniques")
+# Supprimer l'ancienne colonne si elle existe
+if 'Statut_Etablissement' in df_casemix.columns:
+    df_casemix = df_casemix.drop(columns=['Statut_Etablissement'])
+if 'Statut_Detail' in df_casemix.columns:
+    df_casemix = df_casemix.drop(columns=['Statut_Detail'])
+# S'assurer que Finess est en string
+df_casemix['Finess'] = df_casemix['Finess'].astype(str).str.strip()
+print(f"   {len(df_casemix):,} lignes chargees")
+print(f"   {df_casemix['Finess'].nunique():,} etablissements uniques")
 
-# 2. Charger le référentiel statut juridique
-print("\n2️⃣ Chargement du référentiel statut juridique...")
-df_statut = pd.read_csv('statutjuridique-finessET.csv', sep=';', skiprows=1,
-                        encoding='utf-8', header=None, low_memory=False)
+# 2. Charger le fichier etalab (FINESS ET) — contient la correspondance ET → EJ
+print("\n2. Chargement du referentiel etalab FINESS ET...")
+df_etalab = pd.read_csv(
+    'etalab-cs1100507-stock-20260107-0342 (2).csv',
+    sep=';', skiprows=1, header=None, encoding='utf-8', low_memory=False, dtype=str
+)
+# Garder uniquement les lignes structureet
+df_etalab = df_etalab[df_etalab[0] == 'structureet'].copy()
+# Colonnes utiles : 1=FINESS_ET, 2=FINESS_EJ
+df_etalab = df_etalab[[1, 2]].rename(columns={1: 'finess_et', 2: 'finess_ej'})
+df_etalab['finess_et'] = df_etalab['finess_et'].str.strip()
+df_etalab['finess_ej'] = df_etalab['finess_ej'].str.strip()
+# Dédupliquer (un ET n'a qu'un seul EJ)
+df_etalab = df_etalab.drop_duplicates(subset='finess_et')
+print(f"   {len(df_etalab):,} etablissements ET avec correspondance EJ")
+
+# 3. Charger le référentiel statut juridique (FINESS EJ)
+print("\n3. Chargement du referentiel statut juridique (EJ)...")
+df_statut = pd.read_csv(
+    'statutjuridique-finessET.csv', sep=';', skiprows=1,
+    header=None, encoding='utf-8', low_memory=False, dtype=str
+)
 df_statut = df_statut[df_statut[0] == 'structureej'].copy()
-df_statut.columns = [f'col{i}' for i in range(len(df_statut.columns))]
-df_statut = df_statut.rename(columns={
-    'col1': 'finess_ej',
-    'col2': 'nom',
-    'col16': 'code_statut'
-})
+# Colonne 1 = FINESS EJ, colonne 16 = code statut juridique
+df_statut = df_statut[[1, 16]].rename(columns={1: 'finess_ej', 16: 'code_statut'})
+df_statut['finess_ej'] = df_statut['finess_ej'].str.strip()
+df_statut['code_statut'] = pd.to_numeric(df_statut['code_statut'], errors='coerce')
+# Dédupliquer
+df_statut = df_statut.drop_duplicates(subset='finess_ej')
+print(f"   {len(df_statut):,} entites juridiques avec code statut")
 
-# Convertir code statut en numérique et classifier
-df_statut['code_statut_num'] = pd.to_numeric(df_statut['code_statut'], errors='coerce')
-df_statut['Statut_EJ'] = df_statut['code_statut_num'].apply(
-    lambda x: 'Public' if pd.notna(x) and 1 <= x <= 52 else
-              ('Privé' if pd.notna(x) and 60 <= x <= 95 else None)
+# 4. Construire la table de référence ET → statut
+print("\n4. Construction de la table FINESS ET -> Statut...")
+df_ref = df_etalab.merge(df_statut, on='finess_ej', how='left')
+
+def classify_statut(code):
+    if pd.isna(code):
+        return None, None
+    code = int(code)
+    if 1 <= code <= 52:
+        return 'Public', 'Public'
+    elif 60 <= code <= 66:
+        return 'Privé', 'Privé Non Lucratif'
+    elif 67 <= code <= 95:
+        return 'Privé', 'Privé Commercial'
+    return None, None
+
+df_ref[['Statut_Etablissement', 'Statut_Detail']] = df_ref['code_statut'].apply(
+    lambda x: pd.Series(classify_statut(x))
 )
 
-# Garder uniquement les colonnes nécessaires
-ref_statut = df_statut[['finess_ej', 'Statut_EJ']].dropna()
-print(f"   ✓ {len(ref_statut):,} entités juridiques avec statut")
-print(f"   ✓ Public: {(ref_statut['Statut_EJ']=='Public').sum():,}")
-print(f"   ✓ Privé: {(ref_statut['Statut_EJ']=='Privé').sum():,}")
+ref_final = df_ref[['finess_et', 'Statut_Etablissement', 'Statut_Detail']].dropna()
+print(f"   {len(ref_final):,} ET avec statut determine")
+print(f"   Public : {(ref_final['Statut_Etablissement']=='Public').sum():,}")
+print(f"   Prive  : {(ref_final['Statut_Etablissement']=='Privé').sum():,}")
+print(f"     dont Non Lucratif : {(ref_final['Statut_Detail']=='Privé Non Lucratif').sum():,}")
+print(f"     dont Commercial   : {(ref_final['Statut_Detail']=='Privé Commercial').sum():,}")
 
-# 3. Merge avec correspondance directe FINESS ET = FINESS EJ
-print("\n3️⃣ Tentative de correspondance directe FINESS ET = FINESS EJ...")
+# 4b. Table de référence EJ → statut (pour les FINESS du casemix qui sont des EJ)
+print("\n4b. Table FINESS EJ -> Statut (fallback)...")
+ref_ej = df_statut.copy()
+ref_ej[['Statut_Etablissement', 'Statut_Detail']] = ref_ej['code_statut'].apply(
+    lambda x: pd.Series(classify_statut(x))
+)
+ref_ej = ref_ej[['finess_ej', 'Statut_Etablissement', 'Statut_Detail']].dropna()
+print(f"   {len(ref_ej):,} EJ avec statut determine")
+
+# 5. Merge avec le casemix — d'abord via FINESS ET, puis fallback via FINESS EJ
+print("\n5. Merge avec le casemix...")
+# Étape 1 : merge via FINESS ET
 df_casemix = df_casemix.merge(
-    ref_statut.rename(columns={'finess_ej': 'Finess', 'Statut_EJ': 'Statut_Etablissement'}),
+    ref_final.rename(columns={'finess_et': 'Finess'}),
     on='Finess',
     how='left'
 )
+nb_via_et = df_casemix['Statut_Etablissement'].notna().sum()
+print(f"   Via FINESS ET : {nb_via_et:,} lignes ({nb_via_et/len(df_casemix)*100:.1f}%)")
+
+# Étape 2 : fallback via FINESS EJ pour les non-matchés
+mask_missing = df_casemix['Statut_Etablissement'].isna()
+finess_missing = df_casemix.loc[mask_missing, 'Finess'].unique()
+# Chercher ces FINESS dans la table EJ
+ref_ej_match = ref_ej[ref_ej['finess_ej'].isin(finess_missing)].rename(
+    columns={'finess_ej': 'Finess', 'Statut_Etablissement': 'Statut_EJ', 'Statut_Detail': 'Detail_EJ'}
+)
+df_casemix = df_casemix.merge(ref_ej_match, on='Finess', how='left')
+# Remplir les manquants avec le fallback EJ
+mask_fill = df_casemix['Statut_Etablissement'].isna() & df_casemix['Statut_EJ'].notna()
+df_casemix.loc[mask_fill, 'Statut_Etablissement'] = df_casemix.loc[mask_fill, 'Statut_EJ']
+df_casemix.loc[mask_fill, 'Statut_Detail'] = df_casemix.loc[mask_fill, 'Detail_EJ']
+df_casemix = df_casemix.drop(columns=['Statut_EJ', 'Detail_EJ'])
+nb_via_ej = mask_fill.sum()
+print(f"   Via FINESS EJ : {nb_via_ej:,} lignes ({nb_via_ej/len(df_casemix)*100:.1f}%)")
 
 nb_matches = df_casemix['Statut_Etablissement'].notna().sum()
-print(f"   ✓ {nb_matches:,} lignes avec correspondance directe ({nb_matches/len(df_casemix)*100:.1f}%)")
+nb_missing = df_casemix['Statut_Etablissement'].isna().sum()
+print(f"   Matches : {nb_matches:,} lignes ({nb_matches/len(df_casemix)*100:.1f}%)")
+print(f"   Manquants : {nb_missing:,} lignes ({nb_missing/len(df_casemix)*100:.1f}%)")
 
-# 4. Heuristique pour les non-matchés
-print("\n4️⃣ Application de l'heuristique sur les noms pour les non-matchés...")
+# 6. Traiter les non-matchés
+if nb_missing > 0:
+    finess_manquants = df_casemix[df_casemix['Statut_Etablissement'].isna()]['Finess'].unique()
+    print(f"\n6. {len(finess_manquants)} etablissements sans statut :")
+    for f in finess_manquants[:20]:
+        nom = df_casemix[df_casemix['Finess'] == f]['Nom_Etablissement'].iloc[0] if 'Nom_Etablissement' in df_casemix.columns else '?'
+        print(f"   {f} : {nom}")
 
-def classify_by_name(row):
-    """Classifier selon le nom de l'établissement si pas de statut"""
-    if pd.notna(row['Statut_Etablissement']):
-        return row['Statut_Etablissement']
+    # Remplir les manquants par 'Inconnu'
+    df_casemix['Statut_Etablissement'] = df_casemix['Statut_Etablissement'].fillna('Inconnu')
+    df_casemix['Statut_Detail'] = df_casemix['Statut_Detail'].fillna('Inconnu')
+    print(f"   -> Marques comme 'Inconnu'")
 
-    nom = str(row['Nom_Etablissement']).upper()
-
-    # Indicateurs de PRIVÉ
-    private_keywords = [
-        'CLINIQUE', 'POLYCLINIQUE', 'CENTRE DE SANTE', 'CABINET',
-        'SOCIETE', 'S.A.', 'SAS', 'SARL', 'SELARL', 'ASSOCIATION',
-        'FONDATION', 'CROIX ROUGE', 'MUTUALISTE'
-    ]
-
-    # Indicateurs de PUBLIC
-    public_keywords = [
-        'CHU', 'CH ', ' CH ', 'CENTRE HOSPITALIER', 'HOPITAL', 'HÔPITAL',
-        'AP-HP', 'APHP', 'ASSISTANCE PUBLIQUE', 'HCL', 'HOSPICES CIVILS',
-        'ETABLISSEMENT PUBLIC', 'CHIC', 'EPSM', 'EHPAD PUBLIC'
-    ]
-
-    # Vérifier privé en premier (plus spécifique)
-    for keyword in private_keywords:
-        if keyword in nom:
-            return 'Privé'
-
-    # Vérifier public
-    for keyword in public_keywords:
-        if keyword in nom:
-            return 'Public'
-
-    # Par défaut: si contient "ETABLISSEMENT" ou "ETABL." → Public
-    # Sinon → Privé (principe de précaution, les privés sont majoritaires)
-    if 'ETABL' in nom or 'ETAB' in nom:
-        return 'Public'
-    else:
-        return 'Privé'  # Default
-
-df_casemix['Statut_Etablissement'] = df_casemix.apply(classify_by_name, axis=1)
-
-# 5. Statistiques finales
-print("\n5️⃣ Statistiques de classification:")
-print(f"   Total lignes: {len(df_casemix):,}")
-print(f"   Public: {(df_casemix['Statut_Etablissement']=='Public').sum():,} lignes")
-print(f"   Privé: {(df_casemix['Statut_Etablissement']=='Privé').sum():,} lignes")
+# 7. Statistiques finales
+print("\n7. Statistiques finales :")
+print(f"   Total lignes : {len(df_casemix):,}")
+for statut in ['Public', 'Privé', 'Inconnu']:
+    n = (df_casemix['Statut_Etablissement'] == statut).sum()
+    print(f"   {statut:20s} : {n:>10,} lignes")
 
 # Par établissement
-etab_stats = df_casemix.groupby(['Finess', 'Nom_Etablissement', 'Statut_Etablissement']).size().reset_index(name='count')
-print(f"\n   Par établissement:")
-print(f"   Public: {(etab_stats['Statut_Etablissement']=='Public').sum():,} établissements")
-print(f"   Privé: {(etab_stats['Statut_Etablissement']=='Privé').sum():,} établissements")
+etab_stats = df_casemix.groupby(['Finess', 'Statut_Etablissement']).size().reset_index(name='count')
+etab_unique = etab_stats.drop_duplicates('Finess')
+print(f"\n   Par etablissement :")
+for statut in ['Public', 'Privé', 'Inconnu']:
+    n = (etab_unique['Statut_Etablissement'] == statut).sum()
+    print(f"   {statut:20s} : {n:>6,} etablissements")
 
-# Exemples
-print("\n6️⃣ Exemples de classification:")
-print("\n   Établissements PUBLICS:")
-publics = etab_stats[etab_stats['Statut_Etablissement']=='Public'].head(10)
-for _, row in publics.iterrows():
-    print(f"   {row['Finess']}: {row['Nom_Etablissement']}")
-
-print("\n   Établissements PRIVÉS:")
-prives = etab_stats[etab_stats['Statut_Etablissement']=='Privé'].head(10)
-for _, row in prives.iterrows():
-    print(f"   {row['Finess']}: {row['Nom_Etablissement']}")
-
-# 6. Sauvegarder
-print("\n7️⃣ Sauvegarde du fichier enrichi...")
+# 8. Sauvegarder
+print("\n8. Sauvegarde du fichier enrichi...")
 df_casemix.to_parquet('data_casemix_2022_2024.parquet', index=False)
-print(f"   ✓ Fichier sauvegardé: data_casemix_2022_2024.parquet")
-print(f"   ✓ Nouvelle colonne: Statut_Etablissement")
+print(f"   Fichier sauvegarde : data_casemix_2022_2024.parquet")
+print(f"   Colonnes ajoutees : Statut_Etablissement, Statut_Detail")
 
-print("\n✅ Traitement terminé avec succès!")
+print("\nTermine avec succes !")

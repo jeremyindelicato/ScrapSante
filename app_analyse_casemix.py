@@ -113,12 +113,15 @@ st.markdown("""
         -webkit-background-clip: text;
         -webkit-text-fill-color: transparent;
         background-clip: text;
+        overflow-wrap: break-word;
+        word-break: break-word;
     }
 
     .custom-header p {
         color: #666;
         font-size: 0.9rem;
         margin: 0.5rem 0 0 0;
+        overflow-wrap: break-word;
     }
 
     /* Cards KPI avec animations */
@@ -186,14 +189,23 @@ st.markdown("""
     }
 
     .stTabs [aria-selected="true"]::after {
-        content: '';
-        position: absolute;
-        bottom: -2px;
-        left: 0;
-        width: 100%;
-        height: 3px;
-        background: linear-gradient(90deg, var(--accent-color), var(--tertiary-color));
-        animation: shimmer 2s infinite;
+        display: none !important;
+        background: none !important;
+    }
+
+    /* Override Streamlit internal tab highlight */
+    .stTabs [data-baseweb="tab-highlight"] {
+        background-color: transparent !important;
+        display: none !important;
+    }
+
+    .stTabs [data-baseweb="tab-border"] {
+        background-color: transparent !important;
+    }
+
+    .stTabs [data-baseweb="tab-list"] [role="presentation"] {
+        background-color: transparent !important;
+        background: none !important;
     }
 
     /* Sidebar styling avec animation */
@@ -347,7 +359,6 @@ st.markdown("""
         width: 80px;
         height: 2px;
         background: linear-gradient(90deg, var(--accent-color), transparent);
-        animation: shimmer 3s infinite;
     }
 
     /* Graphiques avec animations */
@@ -1038,7 +1049,7 @@ st.markdown(f"""
         <div class="header-icon" style="flex-shrink: 0;">
             {hospital_svg}
         </div>
-        <div class="header-content" style="flex: 1; min-width: 250px;">
+        <div class="header-content" style="flex: 1; min-width: 0;">
             <h1>{nom_etab}</h1>
             <p>{finess_display} • Période: {', '.join(map(str, annees_selectionnees)) if annees_selectionnees else 'Toutes années'}</p>
         </div>
@@ -1062,24 +1073,63 @@ age_moyen = (df_filtered['Age_Moyen'] * df_filtered['Effectif']).sum() / total_e
 taux_deces = (df_filtered['Taux_Deces'] * df_filtered['Effectif']).sum() / total_effectif if total_effectif > 0 else 0
 nb_ghm = df_filtered['Code_GHM'].nunique()
 
+# Calcul des deltas vs année précédente
+delta_effectif = None
+delta_dms = None
+delta_age = None
+delta_deces = None
+delta_ghm = None
+
+if annees_selectionnees and len(annees_selectionnees) >= 1:
+    annee_max = max(annees_selectionnees)
+    annee_prec = annee_max - 1
+    # Vérifier si l'année précédente existe dans les données
+    if etablissement_selectionne == "Tous les établissements":
+        df_annee_cur = df[df['Annee'] == annee_max]
+        df_annee_prec = df[df['Annee'] == annee_prec]
+    else:
+        df_annee_cur = df[(df['Finess'] == etablissement_selectionne) & (df['Annee'] == annee_max)]
+        df_annee_prec = df[(df['Finess'] == etablissement_selectionne) & (df['Annee'] == annee_prec)]
+
+    if len(df_annee_prec) > 0 and len(df_annee_cur) > 0:
+        eff_cur = df_annee_cur['Effectif'].sum()
+        eff_prec = df_annee_prec['Effectif'].sum()
+        if eff_prec > 0:
+            delta_effectif = f"{(eff_cur - eff_prec) / eff_prec * 100:+.1f}%"
+
+        dms_cur = (df_annee_cur['DMS'] * df_annee_cur['Effectif']).sum() / eff_cur if eff_cur > 0 else 0
+        dms_prec = (df_annee_prec['DMS'] * df_annee_prec['Effectif']).sum() / eff_prec if eff_prec > 0 else 0
+        if dms_prec > 0:
+            delta_dms = f"{dms_cur - dms_prec:+.2f} j"
+
+        age_cur = (df_annee_cur['Age_Moyen'] * df_annee_cur['Effectif']).sum() / eff_cur if eff_cur > 0 else 0
+        age_prec = (df_annee_prec['Age_Moyen'] * df_annee_prec['Effectif']).sum() / eff_prec if eff_prec > 0 else 0
+        delta_age = f"{age_cur - age_prec:+.1f} ans"
+
+        dec_cur = (df_annee_cur['Taux_Deces'] * df_annee_cur['Effectif']).sum() / eff_cur if eff_cur > 0 else 0
+        dec_prec = (df_annee_prec['Taux_Deces'] * df_annee_prec['Effectif']).sum() / eff_prec if eff_prec > 0 else 0
+        delta_deces = f"{dec_cur - dec_prec:+.3f}%"
+
+        delta_ghm = f"{df_annee_cur['Code_GHM'].nunique() - df_annee_prec['Code_GHM'].nunique():+d}"
+
 st.markdown('<div class="section-title">Indicateurs Clés</div>', unsafe_allow_html=True)
 
 col1, col2, col3, col4, col5 = st.columns(5)
 
 with col1:
-    st.metric("Effectif Total", f"{int(total_effectif):,}")
+    st.metric("Effectif Total", f"{int(total_effectif):,}", delta=delta_effectif)
 
 with col2:
-    st.metric("GHM Distincts", f"{nb_ghm}")
+    st.metric("GHM Distincts", f"{nb_ghm}", delta=delta_ghm)
 
 with col3:
-    st.metric("DMS Moyenne", f"{dms_moyenne:.1f} j")
+    st.metric("DMS Moyenne", f"{dms_moyenne:.1f} j", delta=delta_dms, delta_color="inverse")
 
 with col4:
-    st.metric("Âge Moyen", f"{age_moyen:.0f} ans")
+    st.metric("Âge Moyen", f"{age_moyen:.0f} ans", delta=delta_age, delta_color="off")
 
 with col5:
-    st.metric("Taux Décès", f"{taux_deces:.2f}%")
+    st.metric("Taux Décès", f"{taux_deces:.2f}%", delta=delta_deces, delta_color="inverse")
 
 st.markdown("---")
 
@@ -1171,7 +1221,7 @@ tab1, tab2, tab3, tab4, tab5, tab6, tab7 = st.tabs([
     "Sélection Filtrée",
     "Analyse Financière",
     "Carte de France",
-    "Classifications",
+    "Comparaison Multi-Établissements",
     "Évolution temporelle",
     "Export données"
 ])
@@ -1206,19 +1256,22 @@ with tab1:
             xaxis=dict(title='Effectif'),
             margin=dict(l=20, r=20, t=40, b=20)
         )
-        st.plotly_chart(fig, width="stretch")
+        st.plotly_chart(fig, use_container_width=True)
 
     with col2:
-        # Distribution de l'âge
+        # Distribution de l'âge (pondérée par Effectif)
         fig = go.Figure()
+        # Pondérer par effectif : chaque GHM pèse selon son volume
+        df_age_valid = df_filtered[df_filtered['Age_Moyen'].notna() & (df_filtered['Effectif'] > 0)]
+        age_weighted = np.repeat(df_age_valid['Age_Moyen'].values, df_age_valid['Effectif'].astype(int).values)
         fig.add_trace(go.Histogram(
-            x=df_filtered['Age_Moyen'],
+            x=age_weighted,
             nbinsx=30,
             marker_color=COLORS['primary'],
             opacity=0.7,
             name='Distribution'
         ))
-        mediane_age = df_filtered['Age_Moyen'].median()
+        mediane_age = np.median(age_weighted) if len(age_weighted) > 0 else 0
         fig.add_vline(
             x=mediane_age,
             line_dash="dash",
@@ -1227,26 +1280,27 @@ with tab1:
             annotation_position="top"
         )
         fig.update_layout(
-            title="Distribution de l'Âge Moyen",
+            title="Distribution de l'Âge Moyen (pondérée)",
             xaxis_title="Âge (années)",
-            yaxis_title="Fréquence",
+            yaxis_title="Nb séjours",
             height=300,
             showlegend=False,
             margin=dict(l=20, r=20, t=40, b=20)
         )
-        st.plotly_chart(fig, width="stretch")
+        st.plotly_chart(fig, use_container_width=True)
 
-        # Répartition DMS
+        # Répartition DMS (pondérée par Effectif)
         fig = go.Figure()
-        df_filtered_copy = df_filtered[df_filtered['DMS'].notna()].copy()
+        df_dms_valid = df_filtered[df_filtered['DMS'].notna() & (df_filtered['Effectif'] > 0)]
+        dms_weighted = np.repeat(df_dms_valid['DMS'].values, df_dms_valid['Effectif'].astype(int).values)
         fig.add_trace(go.Histogram(
-            x=df_filtered_copy['DMS'],
+            x=dms_weighted,
             nbinsx=30,
             marker_color=COLORS['quaternary'],
             opacity=0.7,
             name='Distribution'
         ))
-        mediane_dms = df_filtered_copy['DMS'].median()
+        mediane_dms = np.median(dms_weighted) if len(dms_weighted) > 0 else 0
         fig.add_vline(
             x=mediane_dms,
             line_dash="dash",
@@ -1255,14 +1309,14 @@ with tab1:
             annotation_position="top"
         )
         fig.update_layout(
-            title="Distribution de la Durée Moyenne de Séjour",
+            title="Distribution de la DMS (pondérée)",
             xaxis_title="DMS (jours)",
-            yaxis_title="Fréquence",
+            yaxis_title="Nb séjours",
             height=300,
             showlegend=False,
             margin=dict(l=20, r=20, t=40, b=20)
         )
-        st.plotly_chart(fig, width="stretch")
+        st.plotly_chart(fig, use_container_width=True)
 
     # Analyses détaillées
     st.markdown('<div class="section-title">Analyses Détaillées</div>', unsafe_allow_html=True)
@@ -1294,7 +1348,7 @@ with tab1:
             height=400,
             margin=dict(l=20, r=20, t=40, b=20)
         )
-        st.plotly_chart(fig, width="stretch")
+        st.plotly_chart(fig, use_container_width=True)
 
     with col2:
         # Taux de décès
@@ -1319,7 +1373,7 @@ with tab1:
                 xaxis=dict(title='Taux de décès (%)'),
                 margin=dict(l=20, r=20, t=40, b=20)
             )
-            st.plotly_chart(fig, width="stretch")
+            st.plotly_chart(fig, use_container_width=True)
         else:
             st.info("Pas de données de mortalité disponibles")
 
@@ -1345,7 +1399,7 @@ with tab1:
             height=400,
             margin=dict(l=20, r=20, t=40, b=20)
         )
-        st.plotly_chart(fig, width="stretch")
+        st.plotly_chart(fig, use_container_width=True)
 
     # Tableau détaillé
     st.markdown('<div class="section-title">Tableau Détaillé (Top 20)</div>', unsafe_allow_html=True)
@@ -1363,7 +1417,7 @@ with tab1:
         height=400
     )
 
-# TAB 2: SÉLECTION FILTRÉE (NOUVEAU!)
+# TAB 2: SÉLECTION FILTRÉE
 with tab2:
     st.markdown('<div class="section-title">Sélection Filtrée - Analyse Approfondie</div>', unsafe_allow_html=True)
 
@@ -1453,7 +1507,7 @@ with tab2:
             yaxis=dict(title='Effectif'),
             margin=dict(l=20, r=20, t=40, b=40)
         )
-        st.plotly_chart(fig, width="stretch")
+        st.plotly_chart(fig, use_container_width=True)
 
         # Statistiques de la sélection
         col1, col2, col3, col4 = st.columns(4)
@@ -1497,6 +1551,15 @@ with tab3:
             st.info(f"🏥 **Établissement PRIVÉ** : {etablissement_selectionne} - Valorisation basée sur les tarifs GHS Privé")
         else:
             st.warning(f"⚠️ Statut inconnu pour {etablissement_selectionne}")
+
+    # Disclaimer CA estimé
+    st.markdown("""
+    <div style="background: #FFF9E6; padding: 10px 14px; border-radius: 6px; border-left: 4px solid #BB7702; font-size: 0.82rem; color: #555; margin-bottom: 16px;">
+        ⚠️ <strong>Note méthodologique :</strong> Le chiffre d'affaires affiché est une <strong>estimation</strong> basée uniquement sur le tarif GHS de base (hors suppléments,
+        forfaits journaliers, actes externes, dispositifs médicaux en sus, molécules onéreuses, etc.).
+        Il ne reflète pas le revenu réel de l'établissement.
+    </div>
+    """, unsafe_allow_html=True)
 
     # ========== SECTION ÉTABLISSEMENT PUBLIC ==========
     if statut_etablissement in ["Public", "Mixte"]:
@@ -1843,7 +1906,7 @@ with tab4:
                     'Age_Moyen': ':.0f',
                     'Taux_Deces': ':.2f'
                 },
-                color_continuous_scale='YlOrRd',
+                color_continuous_scale=[[0, COLORS['secondary']], [0.5, COLORS['tertiary']], [1, COLORS['primary']]],
                 labels={
                     'Effectif': 'Effectif total',
                     'Nb_Etablissements': 'Nb établissements',
@@ -1871,7 +1934,7 @@ with tab4:
                 }
             )
 
-            st.plotly_chart(fig_map, use_container_width=True)
+            st.plotly_chart(fig_map, use_container_width=True, config={'responsive': True})
 
             # Tableau récapitulatif des départements
             st.markdown("### 📊 Top 10 Départements par Effectif")
@@ -1921,105 +1984,135 @@ with tab4:
 
 # TAB 5: CLASSIFICATIONS
 with tab5:
-    st.markdown('<div class="section-title">Analyses par Classification</div>', unsafe_allow_html=True)
+    st.markdown('<div class="section-title">Comparaison Multi-Établissements</div>', unsafe_allow_html=True)
 
-    col1, col2 = st.columns(2)
+    st.markdown("""
+    <div style="background: linear-gradient(135deg, #F0F8FF, #FFF9E6); padding: 10px 14px; border-radius: 6px; border-left: 4px solid #307E84; font-size: 0.82rem; margin-bottom: 16px;">
+        Comparez l'activité de plusieurs établissements sur un même GHM. Sélectionnez un code GHM et jusqu'à 10 établissements.
+    </div>
+    """, unsafe_allow_html=True)
 
-    # Analyse par DA (Domaine d'Activité)
-    with col1:
-        if 'DA' in df_filtered.columns:
-            df_da = compute_classification_data(df_filtered, 'DA')
+    # Sélection du GHM à comparer
+    col_ghm, col_metric = st.columns([3, 1])
 
-            fig = px.bar(
-                df_da,
-                x='Effectif',
-                y='DA',
-                orientation='h',
-                title="Top 10 Domaines d'Activité",
-                color='Effectif',
-                color_continuous_scale=[[0, COLORS['primary']], [1, COLORS['tertiary']]],
-                text='Effectif'
-            )
-            fig.update_traces(texttemplate='%{text:,.0f}', textposition='outside')
-            fig.update_layout(
-                height=500,
-                showlegend=False,
-                yaxis=dict(title=''),
-                margin=dict(l=20, r=20, t=40, b=20)
-            )
-            st.plotly_chart(fig, width="stretch")
+    with col_ghm:
+        # Liste des GHM disponibles triée par effectif total
+        ghm_effectifs = df.groupby('Code_GHM')['Effectif'].sum().sort_values(ascending=False)
+        ghm_options = ghm_effectifs.index.tolist()
 
-    # Analyse par Classification PKCS
-    with col2:
-        if 'Classif PKCS' in df_filtered.columns:
-            df_pkcs = compute_classification_data(df_filtered, 'Classif PKCS')
+        # Créer un label avec le libellé
+        ghm_libelle_map = df.drop_duplicates('Code_GHM').set_index('Code_GHM')['Libelle'].to_dict()
 
-            fig = px.bar(
-                df_pkcs,
-                x='Effectif',
-                y='Classif PKCS',
-                orientation='h',
-                title="Top 10 Classifications PKCS",
-                color='Effectif',
-                color_continuous_scale=[[0, COLORS['secondary']], [1, COLORS['tertiary']]],
-                text='Effectif'
-            )
-            fig.update_traces(texttemplate='%{text:,.0f}', textposition='outside')
-            fig.update_layout(
-                height=500,
-                showlegend=False,
-                yaxis=dict(title=''),
-                margin=dict(l=20, r=20, t=40, b=20)
-            )
-            st.plotly_chart(fig, width="stretch")
+        def format_ghm(code):
+            lib = ghm_libelle_map.get(code, '')
+            eff = ghm_effectifs.get(code, 0)
+            return f"{code} - {lib} ({int(eff):,} séjours)"
 
-    # Treemap hiérarchique
-    if 'DA' in df_filtered.columns and 'GP' in df_filtered.columns:
-        st.markdown('<div class="section-title">Vue Hiérarchique</div>', unsafe_allow_html=True)
-
-        df_tree = df_filtered[
-            (df_filtered['DA'] != 'Non renseigné') &
-            (df_filtered['GP'] != 'Non renseigné')
-        ].groupby(['DA', 'GP'])['Effectif'].sum().reset_index()
-
-        df_tree = df_tree.sort_values('Effectif', ascending=False).head(50)
-
-        fig = px.treemap(
-            df_tree,
-            path=['DA', 'GP'],
-            values='Effectif',
-            title="Hiérarchie DA > GP (Top 50)",
-            color='Effectif',
-            color_continuous_scale=[[0, COLORS['secondary']], [0.5, COLORS['primary']], [1, COLORS['tertiary']]]
+        ghm_compare = st.selectbox(
+            "Code GHM à comparer",
+            options=ghm_options,
+            format_func=format_ghm,
+            index=0,
+            key="ghm_compare_select"
         )
+
+    with col_metric:
+        metric_compare = st.selectbox(
+            "Indicateur",
+            options=["Effectif", "DMS", "Age_Moyen", "Taux_Deces"],
+            format_func=lambda x: {"Effectif": "Nombre de séjours", "DMS": "DMS (jours)", "Age_Moyen": "Âge moyen", "Taux_Deces": "Taux de décès (%)"}[x],
+            key="metric_compare_select"
+        )
+
+    # Filtrer les données pour ce GHM
+    df_ghm = df[df['Code_GHM'] == ghm_compare].copy()
+    df_ghm['Finess'] = df_ghm['Finess'].astype(str)
+
+    # Top établissements par effectif sur ce GHM
+    top_etab_ghm = df_ghm.groupby('Finess')['Effectif'].sum().sort_values(ascending=False)
+    etab_options_compare = top_etab_ghm.index.tolist()
+
+    def format_etab_compare(finess):
+        nom = finess_mapping.get(str(finess), 'Inconnu')
+        eff = top_etab_ghm.get(finess, 0)
+        return f"{nom} ({finess}) - {int(eff):,} séjours"
+
+    etab_selectionnes = st.multiselect(
+        "Établissements à comparer (max 10)",
+        options=etab_options_compare,
+        default=etab_options_compare[:3] if len(etab_options_compare) >= 3 else etab_options_compare,
+        max_selections=10,
+        format_func=format_etab_compare,
+        key="etab_compare_multiselect"
+    )
+
+    if etab_selectionnes and ghm_compare:
+        # Filtrer les données
+        df_compare = df_ghm[df_ghm['Finess'].isin(etab_selectionnes)]
+
+        # Agréger par établissement et année
+        if metric_compare == "Effectif":
+            df_pivot = df_compare.groupby(['Finess', 'Annee'])['Effectif'].sum().reset_index()
+        else:
+            # Moyenne pondérée par effectif
+            def weighted_agg(group):
+                eff = group['Effectif'].sum()
+                if eff > 0:
+                    return (group[metric_compare] * group['Effectif']).sum() / eff
+                return 0
+            df_pivot = df_compare.groupby(['Finess', 'Annee']).apply(weighted_agg).reset_index(name=metric_compare)
+            df_pivot['Effectif'] = df_compare.groupby(['Finess', 'Annee'])['Effectif'].sum().values
+
+        # Ajouter nom établissement
+        df_pivot['Etablissement'] = df_pivot['Finess'].map(finess_mapping).fillna('Inconnu')
+        df_pivot['Annee'] = df_pivot['Annee'].astype(str)
+
+        metric_labels = {"Effectif": "Nombre de séjours", "DMS": "DMS (jours)", "Age_Moyen": "Âge moyen (ans)", "Taux_Deces": "Taux de décès (%)"}
+
+        # Graphique principal : barres groupées par établissement, couleur = année
+        fig = px.bar(
+            df_pivot,
+            x='Etablissement',
+            y=metric_compare,
+            color='Annee',
+            barmode='group',
+            title=f"{metric_labels[metric_compare]} - {ghm_compare} ({ghm_libelle_map.get(ghm_compare, '')})",
+            text=metric_compare,
+            color_discrete_sequence=COLORS['palette'] + ['#A0A0A0', '#D4A574', '#6B8E9B']
+        )
+        fig.update_traces(texttemplate='%{text:,.0f}' if metric_compare == 'Effectif' else '%{text:.1f}', textposition='outside')
         fig.update_layout(
-            height=600,
-            margin=dict(l=20, r=20, t=40, b=20)
+            height=500,
+            xaxis=dict(title=''),
+            yaxis=dict(title=metric_labels[metric_compare]),
+            legend_title="Année",
+            margin=dict(l=20, r=20, t=60, b=20)
         )
-        st.plotly_chart(fig, width="stretch")
+        st.plotly_chart(fig, use_container_width=True)
 
-    # Sunburst
-    if 'MCO' in df_filtered.columns and 'CAS' in df_filtered.columns:
-        st.markdown('<div class="section-title">Répartition MCO / CAS</div>', unsafe_allow_html=True)
+        # Tableau récapitulatif
+        st.markdown('<div class="section-title">Tableau récapitulatif</div>', unsafe_allow_html=True)
 
-        df_sun = df_filtered[
-            (df_filtered['MCO'] != 'Non renseigné') &
-            (df_filtered['CAS'] != 'Non renseigné')
-        ].groupby(['MCO', 'CAS'])['Effectif'].sum().reset_index()
+        df_recap = df_pivot.pivot_table(
+            index='Etablissement',
+            columns='Annee',
+            values=metric_compare,
+            aggfunc='sum' if metric_compare == 'Effectif' else 'mean'
+        ).reset_index()
 
-        fig = px.sunburst(
-            df_sun,
-            path=['MCO', 'CAS'],
-            values='Effectif',
-            title="Répartition MCO / CAS",
-            color='Effectif',
-            color_continuous_scale=[[0, COLORS['quaternary']], [1, COLORS['tertiary']]]
-        )
-        fig.update_layout(
-            height=600,
-            margin=dict(l=20, r=20, t=40, b=20)
-        )
-        st.plotly_chart(fig, width="stretch")
+        # Ajouter variation si possible
+        annees_dispo = sorted(df_pivot['Annee'].unique())
+        if len(annees_dispo) >= 2:
+            first_year = annees_dispo[0]
+            last_year = annees_dispo[-1]
+            if first_year in df_recap.columns and last_year in df_recap.columns:
+                df_recap['Variation'] = ((df_recap[last_year] - df_recap[first_year]) / df_recap[first_year] * 100).round(1)
+                df_recap['Variation'] = df_recap['Variation'].apply(lambda x: f"{x:+.1f}%")
+
+        st.dataframe(df_recap, use_container_width=True, height=min(400, 40 + len(df_recap) * 35))
+
+    elif not etab_selectionnes:
+        st.info("Sélectionnez au moins un établissement pour afficher la comparaison.")
 
 # TAB 6: ÉVOLUTION TEMPORELLE
 with tab6:
@@ -2048,7 +2141,7 @@ with tab6:
                 yaxis=dict(title='Effectif'),
                 margin=dict(l=20, r=20, t=40, b=20)
             )
-            st.plotly_chart(fig, width="stretch")
+            st.plotly_chart(fig, use_container_width=True)
 
         with col2:
             fig = px.line(
@@ -2066,7 +2159,7 @@ with tab6:
                 yaxis=dict(title='DMS (jours)'),
                 margin=dict(l=20, r=20, t=40, b=20)
             )
-            st.plotly_chart(fig, width="stretch")
+            st.plotly_chart(fig, use_container_width=True)
 
         col3, col4 = st.columns(2)
 
@@ -2086,7 +2179,7 @@ with tab6:
                 yaxis=dict(title='Âge (années)'),
                 margin=dict(l=20, r=20, t=40, b=20)
             )
-            st.plotly_chart(fig, width="stretch")
+            st.plotly_chart(fig, use_container_width=True)
 
         with col4:
             fig = px.line(
@@ -2104,7 +2197,7 @@ with tab6:
                 yaxis=dict(title='Taux de décès (%)'),
                 margin=dict(l=20, r=20, t=40, b=20)
             )
-            st.plotly_chart(fig, width="stretch")
+            st.plotly_chart(fig, use_container_width=True)
 
         # Top 5 libellés évolution
         st.markdown('<div class="section-title">Évolution des Principaux Libellés</div>', unsafe_allow_html=True)
@@ -2113,24 +2206,23 @@ with tab6:
         df_top5_evol = df_filtered[df_filtered['Libelle'].isin(top5_libelles)]
         df_top5_evol = df_top5_evol.groupby(['Annee', 'Libelle'])['Effectif'].sum().reset_index()
 
-        fig = px.line(
+        fig = px.bar(
             df_top5_evol,
             x='Annee',
             y='Effectif',
             color='Libelle',
-            markers=True,
+            barmode='group',
             title="Évolution des 5 Libellés Principaux",
             color_discrete_sequence=COLORS['palette']
         )
-        fig.update_traces(marker=dict(size=8), line=dict(width=2))
         fig.update_layout(
             height=450,
-            xaxis=dict(title=''),
+            xaxis=dict(title='', type='category'),
             yaxis=dict(title='Effectif'),
             legend=dict(orientation="v", yanchor="top", y=1, xanchor="left", x=1.02),
             margin=dict(l=20, r=150, t=40, b=20)
         )
-        st.plotly_chart(fig, width="stretch")
+        st.plotly_chart(fig, use_container_width=True)
 
         # Analyse des plus fortes progressions/régressions
         st.markdown('<div class="section-title">Plus Fortes Variations</div>', unsafe_allow_html=True)
@@ -2176,7 +2268,7 @@ with tab6:
                 xaxis=dict(title='Variation effectif'),
                 margin=dict(l=20, r=20, t=40, b=20)
             )
-            st.plotly_chart(fig, width="stretch")
+            st.plotly_chart(fig, use_container_width=True)
 
         with col2:
             # Top régressions
@@ -2200,7 +2292,7 @@ with tab6:
                 xaxis=dict(title='Variation effectif'),
                 margin=dict(l=20, r=20, t=40, b=20)
             )
-            st.plotly_chart(fig, width="stretch")
+            st.plotly_chart(fig, use_container_width=True)
 
     else:
         st.info("Sélectionnez plusieurs années pour voir l'évolution temporelle")
@@ -2269,7 +2361,7 @@ with tab7:
     if 'Décès (%)' in df_export_display.columns:
         df_export_display['Décès (%)'] = df_export_display['Décès (%)'].round(2)
 
-    st.dataframe(df_export_display, width="stretch", height=500)
+    st.dataframe(df_export_display, use_container_width=True, height=500)
 
     # Statistiques et boutons d'export
     col1, col2, col3 = st.columns([1, 1, 2])
